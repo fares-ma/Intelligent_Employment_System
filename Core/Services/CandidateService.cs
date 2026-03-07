@@ -82,24 +82,50 @@ public class CandidateService : ICandidateService
         // Clear existing skills
         candidate.CandidateSkills.Clear();
 
-        // Add new skills
-        foreach (var skillName in dto.SkillNames)
+        // Normalize names
+        var normalizedNames = dto.SkillNames.Select(n => n.Trim().ToLower()).Distinct().ToList();
+
+        // Batch fetch existing skills instead of N+1 queries
+        var existingSkills = (await _skillRepository.GetByNamesAsync(normalizedNames)).ToList();
+        var existingNames = existingSkills.Select(s => s.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Create missing skills in bulk
+        var missingNames = normalizedNames.Where(n => !existingNames.Contains(n)).ToList();
+        var newSkills = new List<Skill>();
+        foreach (var name in missingNames)
         {
-            var skill = await _skillRepository.GetByNameAsync(skillName);
-            if (skill == null)
+            var skill = new Skill { Name = name };
+            _skillRepository.Create(skill);
+            newSkills.Add(skill);
+        }
+
+        if (newSkills.Count > 0)
+        {
+            try
             {
-                skill = new Skill { Name = skillName.ToLower() };
-                _skillRepository.Create(skill);
                 await _unitOfWork.SaveChangesAsync();
             }
+            catch (Exception ex) when (ex.InnerException?.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase) == true
+                                    || ex.InnerException?.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                // Race condition: another request created the skill. Re-query.
+                _logger.LogWarning("Duplicate skill detected during bulk create, re-querying");
+                existingSkills = (await _skillRepository.GetByNamesAsync(normalizedNames)).ToList();
+                newSkills.Clear();
+            }
+        }
 
+        // Link all skills to candidate
+        var allSkills = existingSkills.Concat(newSkills);
+        foreach (var skill in allSkills)
+        {
             candidate.CandidateSkills.Add(new CandidateSkill { CandidateId = candidateId, SkillId = skill.Id });
         }
 
         _candidateRepository.Update(candidate);
         await _unitOfWork.SaveChangesAsync();
 
-        _logger.LogInformation("Skills updated for candidate {CandidateId}", candidateId);
+        _logger.LogInformation("Skills updated for candidate {CandidateId}: {Count} skills", candidateId, normalizedNames.Count);
     }
 
     public async Task<ResumeDto> UploadResumeAsync(string candidateId, string fileName, Stream fileStream)
@@ -108,26 +134,40 @@ public class CandidateService : ICandidateService
         if (candidate == null)
             throw new NotFoundException("Candidate not found");
 
-        // Save file
+        // Save file first
         string filePath = await _fileStorageService.SaveFileAsync(fileName, fileStream, "resumes");
 
-        // Create resume entity
-        var resume = new Resume
+        // Determine file size safely (stream may no longer be seekable after save)
+        long fileSizeBytes = fileStream.CanSeek ? fileStream.Length : new FileInfo(filePath).Length;
+
+        // Create resume entity — wrap in try/catch to clean up orphaned file on DB failure
+        try
         {
-            CandidateId = candidateId,
-            OriginalFileName = fileName,
-            StoredFilePath = filePath,
-            FileType = Path.GetExtension(fileName).TrimStart('.').ToLower(),
-            FileSizeBytes = fileStream.Length,
-            CreatedAt = DateTime.UtcNow
-        };
+            var resume = new Resume
+            {
+                CandidateId = candidateId,
+                OriginalFileName = fileName,
+                StoredFilePath = filePath,
+                FileType = Path.GetExtension(fileName).TrimStart('.').ToLower(),
+                FileSizeBytes = fileSizeBytes,
+                CreatedAt = DateTime.UtcNow
+            };
 
-        _resumeRepository.Create(resume);
-        await _unitOfWork.SaveChangesAsync();
+            _resumeRepository.Create(resume);
+            await _unitOfWork.SaveChangesAsync();
 
-        _logger.LogInformation("Resume uploaded for candidate {CandidateId}: {FileName}", candidateId, fileName);
+            _logger.LogInformation("Resume uploaded for candidate {CandidateId}: {FileName}", candidateId, fileName);
 
-        return _mapper.Map<ResumeDto>(resume);
+            return _mapper.Map<ResumeDto>(resume);
+        }
+        catch (Exception ex)
+        {
+            // Clean up the saved file to prevent orphans
+            _logger.LogError(ex, "DB save failed after file upload for candidate {CandidateId}, cleaning up file {FilePath}", candidateId, filePath);
+            try { await _fileStorageService.DeleteFileAsync(filePath); }
+            catch (Exception cleanupEx) { _logger.LogError(cleanupEx, "Failed to clean up orphaned file: {FilePath}", filePath); }
+            throw;
+        }
     }
 
     public async Task DeleteResumeAsync(string candidateId, int resumeId)
@@ -227,18 +267,35 @@ public class CandidateService : ICandidateService
         if (candidate == null)
             throw new NotFoundException("Candidate not found");
 
-        // Delete old profile picture if exists
-        if (!string.IsNullOrEmpty(candidate.ProfilePicturePath) && _fileStorageService.FileExists(candidate.ProfilePicturePath))
-            await _fileStorageService.DeleteFileAsync(candidate.ProfilePicturePath);
+        // Remember old path for cleanup after successful persistence
+        string? oldPicturePath = candidate.ProfilePicturePath;
 
-        // Save new picture
+        // Save new picture FIRST (don't delete old yet — prevents data loss if save fails)
         string picturePath = await _fileStorageService.SaveFileAsync(fileName, fileStream, "profile-pictures");
 
-        candidate.ProfilePicturePath = picturePath;
-        candidate.UpdatedAt = DateTime.UtcNow;
+        try
+        {
+            candidate.ProfilePicturePath = picturePath;
+            candidate.UpdatedAt = DateTime.UtcNow;
 
-        _candidateRepository.Update(candidate);
-        await _unitOfWork.SaveChangesAsync();
+            _candidateRepository.Update(candidate);
+            await _unitOfWork.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            // DB persistence failed — clean up the newly saved file
+            _logger.LogError(ex, "Failed to persist profile picture for candidate {CandidateId}, cleaning up", candidateId);
+            try { await _fileStorageService.DeleteFileAsync(picturePath); }
+            catch (Exception cleanupEx) { _logger.LogError(cleanupEx, "Failed to clean up new profile picture: {Path}", picturePath); }
+            throw;
+        }
+
+        // Only delete old picture AFTER successful persistence
+        if (!string.IsNullOrEmpty(oldPicturePath) && _fileStorageService.FileExists(oldPicturePath))
+        {
+            try { await _fileStorageService.DeleteFileAsync(oldPicturePath); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete old profile picture: {Path}", oldPicturePath); }
+        }
 
         _logger.LogInformation("Profile picture updated for candidate {CandidateId}", candidateId);
 

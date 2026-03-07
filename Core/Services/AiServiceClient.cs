@@ -7,7 +7,8 @@ public class AiServiceClient : IAiServiceClient
     public Task<(decimal Score, string Report)> ScoreResumeAsync(string resumeText, string jobDescription)
     {
         // TODO: Implement when AI service is ready
-        return Task.FromResult((100m, "AI service not yet integrated"));
+        // Returns 0 (not 100) to avoid false-positive matches in production
+        return Task.FromResult((0m, "AI service not yet integrated"));
     }
 
     public Task<List<string>> ExtractSkillsAsync(string jobDescription)

@@ -14,19 +14,20 @@ public class CandidateMappingProfile : Profile
             .ForMember(dest => dest.Gender, opt => opt.MapFrom(src => src.Gender.ToString()))
             .ForMember(dest => dest.CareerLevel, opt => opt.MapFrom(src => src.CareerLevel.HasValue ? src.CareerLevel.Value.ToString() : null))
             .ForMember(dest => dest.Skills, opt => opt.MapFrom(src =>
-                src.CandidateSkills.Select(cs => new SkillDto
-                {
-                    Id = cs.Skill.Id,
-                    Name = cs.Skill.Name,
-                    Category = cs.Skill.Category.HasValue ? cs.Skill.Category.Value.ToString() : null
-                }).ToList()));
+                (src.CandidateSkills ?? new List<CandidateSkill>()).Select(cs => cs.Skill)));
 
         // UpdateCandidateProfileDto to CandidateUser
         CreateMap<UpdateCandidateProfileDto, CandidateUser>()
-            .ForMember(dest => dest.Gender, opt => opt.MapFrom(src =>
-                !string.IsNullOrEmpty(src.Gender) ? Enum.Parse<Gender>(src.Gender, true) : Gender.Male))
-            .ForMember(dest => dest.CareerLevel, opt => opt.MapFrom(src =>
-                !string.IsNullOrEmpty(src.CareerLevel) ? Enum.Parse<JobLevel>(src.CareerLevel, true) : null as JobLevel?))
+            .ForMember(dest => dest.Gender, opt =>
+            {
+                opt.PreCondition(src => !string.IsNullOrEmpty(src.Gender) && Enum.TryParse<Gender>(src.Gender, true, out _));
+                opt.MapFrom(src => Enum.Parse<Gender>(src.Gender!, true));
+            })
+            .ForMember(dest => dest.CareerLevel, opt =>
+            {
+                opt.PreCondition(src => !string.IsNullOrEmpty(src.CareerLevel) && Enum.TryParse<JobLevel>(src.CareerLevel, true, out _));
+                opt.MapFrom(src => Enum.Parse<JobLevel>(src.CareerLevel!, true) as JobLevel?);
+            })
             .ForMember(dest => dest.CandidateSkills, opt => opt.Ignore())
             .ForMember(dest => dest.Resumes, opt => opt.Ignore());
 

@@ -1,5 +1,3 @@
-using Services.Abstractions.DTOs.Candidates;
-
 namespace Services.Abstractions;
 
 public interface IAiServiceClient

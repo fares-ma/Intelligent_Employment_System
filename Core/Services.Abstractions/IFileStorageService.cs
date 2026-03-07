@@ -8,25 +8,25 @@ public interface IFileStorageService
     /// <param name="fileName">Original file name</param>
     /// <param name="fileStream">File stream to save</param>
     /// <param name="folder">Subfolder within configured base path</param>
-    /// <returns>Stored file path</returns>
+    /// <returns>Stored file path (relative to base path)</returns>
     Task<string> SaveFileAsync(string fileName, Stream fileStream, string folder);
 
     /// <summary>
-    /// Delete a file from storage
+    /// Delete a file from storage. Path must resolve within the storage root.
     /// </summary>
-    /// <param name="filePath">Full path to delete</param>
+    /// <param name="filePath">Path to delete (relative to storage root)</param>
     Task DeleteFileAsync(string filePath);
 
     /// <summary>
-    /// Get file bytes for download
+    /// Get a readable stream for a file. Caller is responsible for disposing the returned Stream.
     /// </summary>
-    /// <param name="filePath">Full path to file</param>
-    /// <returns>File bytes</returns>
-    Task<byte[]> GetFileAsync(string filePath);
+    /// <param name="filePath">Path to file (relative to storage root)</param>
+    /// <returns>A readable Stream. Caller must dispose.</returns>
+    Task<Stream> GetFileStreamAsync(string filePath);
 
     /// <summary>
-    /// Check if file exists
+    /// Check if file exists within the storage root.
     /// </summary>
-    /// <param name="filePath">Full path to file</param>
+    /// <param name="filePath">Path to file (relative to storage root)</param>
     bool FileExists(string filePath);
 }
