@@ -14,7 +14,6 @@ public class CandidateRepository : RepositoryBase<CandidateUser>, ICandidateRepo
         return await _dbSet
             .Include(c => c.CandidateSkills)
                 .ThenInclude(cs => cs.Skill)
-            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == candidateId, cancellationToken);
     }
 
@@ -22,7 +21,6 @@ public class CandidateRepository : RepositoryBase<CandidateUser>, ICandidateRepo
     {
         return await _dbSet
             .Include(c => c.Resumes)
-            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == candidateId, cancellationToken);
     }
 }

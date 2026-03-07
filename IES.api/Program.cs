@@ -130,12 +130,23 @@ namespace IES.api
 
             // ── Repository & UnitOfWork DI ──
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+            builder.Services.AddScoped<ICandidateRepository, CandidateRepository>();
+            builder.Services.AddScoped<IResumeRepository, ResumeRepository>();
+            builder.Services.AddScoped<ISavedJobRepository, SavedJobRepository>();
+            builder.Services.AddScoped<ISkillRepository, SkillRepository>();
 
             // ── Services DI ──
             builder.Services.AddScoped<IAuthService, AuthService>();
+            builder.Services.AddScoped<ICandidateService, CandidateService>();
+            builder.Services.AddScoped<IFileStorageService, FileStorageService>();
+            builder.Services.AddScoped<IAiServiceClient, AiServiceClient>();
+
+            // ── Configuration for FileStorage ──
+            builder.Services.Configure<Shared.Configuration.FileStorageSettings>(
+                builder.Configuration.GetSection("FileStorage"));
 
             // ── AutoMapper ──
-            builder.Services.AddAutoMapper(typeof(AuthMappingProfile));
+            builder.Services.AddAutoMapper(typeof(AuthMappingProfile), typeof(CandidateMappingProfile));
 
             // ── Controllers ──
             builder.Services.AddControllers()
