@@ -27,6 +27,8 @@ public class CandidateUser : ApplicationUser
 
     // Navigation properties
     public ICollection<CandidateSkill> CandidateSkills { get; set; } = new List<CandidateSkill>();
+    public ICollection<CandidateEducation> CandidateEducations { get; set; } = new List<CandidateEducation>();
+    public ICollection<CandidateExperience> CandidateExperiences { get; set; } = new List<CandidateExperience>();
     public ICollection<Resume> Resumes { get; set; } = new List<Resume>();
     public ICollection<JobApplication> JobApplications { get; set; } = new List<JobApplication>();
     public ICollection<SavedJob> SavedJobs { get; set; } = new List<SavedJob>();

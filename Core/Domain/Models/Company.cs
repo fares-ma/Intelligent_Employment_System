@@ -24,8 +24,6 @@ public class Company
 
     public string? LogoPath { get; set; }
 
-    public bool IsVerified { get; set; } = false;
-
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -35,4 +33,5 @@ public class Company
     // Navigation properties
     public ICollection<Recruiter> Recruiters { get; set; } = new List<Recruiter>();
     public ICollection<JobPost> JobPosts { get; set; } = new List<JobPost>();
+    public ICollection<CompanyInviteCode> CompanyInviteCodes { get; set; } = new List<CompanyInviteCode>();
 }

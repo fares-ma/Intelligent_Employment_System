@@ -35,6 +35,10 @@ public class JobPost
 
     public bool IsActive { get; set; } = true;
 
+    public DateTime? DeletedAt { get; set; }
+
+    public string? DeletedBy { get; set; }
+
     public int CompanyId { get; set; }
     public Company Company { get; set; } = null!;
 

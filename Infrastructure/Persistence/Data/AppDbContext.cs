@@ -30,6 +30,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ResumeSkill> ResumeSkills => Set<ResumeSkill>();
     public DbSet<CandidateAssessment> CandidateAssessments => Set<CandidateAssessment>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<CompanyInviteCode> CompanyInviteCodes => Set<CompanyInviteCode>();
+    public DbSet<CandidateEducation> CandidateEducations => Set<CandidateEducation>();
+    public DbSet<CandidateExperience> CandidateExperiences => Set<CandidateExperience>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

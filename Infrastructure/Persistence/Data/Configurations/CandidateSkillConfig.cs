@@ -19,5 +19,8 @@ public class CandidateSkillConfig : IEntityTypeConfiguration<CandidateSkill>
             .WithMany(s => s.CandidateSkills)
             .HasForeignKey(cs => cs.SkillId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Property(cs => cs.Level)
+            .HasConversion<int>();
     }
 }

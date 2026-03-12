@@ -58,6 +58,12 @@ public class JobPostConfig : IEntityTypeConfiguration<JobPost>
         builder.Property(j => j.IsActive)
             .HasDefaultValue(true);
 
+        builder.Property(j => j.DeletedAt)
+            .IsRequired(false);
+
+        builder.Property(j => j.DeletedBy)
+            .HasMaxLength(450);
+
         builder.Property(j => j.CreatedAt)
             .HasDefaultValueSql("getutcdate()");
     }

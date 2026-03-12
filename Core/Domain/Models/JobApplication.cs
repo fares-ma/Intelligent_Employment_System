@@ -34,6 +34,10 @@ public class JobApplication
 
     public string? RecruiterNotes { get; set; }
 
+    public DateTime? DeletedAt { get; set; }
+
+    public string? DeletedBy { get; set; }
+
     public DateTime AppliedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? UpdatedAt { get; set; }

@@ -21,6 +21,9 @@ public class UnitOfWork : IUnitOfWork
     private IInterviewRepository? _interviews;
     private ISavedJobRepository? _savedJobs;
     private INotificationRepository? _notifications;
+    private ICompanyInviteCodeRepository? _companyInviteCodes;
+    private ICandidateEducationRepository? _candidateEducations;
+    private ICandidateExperienceRepository? _candidateExperiences;
 
     public UnitOfWork(AppDbContext context)
     {
@@ -59,6 +62,15 @@ public class UnitOfWork : IUnitOfWork
 
     public INotificationRepository Notifications =>
         _notifications ??= new NotificationRepository(_context);
+
+    public ICompanyInviteCodeRepository CompanyInviteCodes =>
+        _companyInviteCodes ??= new CompanyInviteCodeRepository(_context);
+
+    public ICandidateEducationRepository CandidateEducations =>
+        _candidateEducations ??= new CandidateEducationRepository(_context);
+
+    public ICandidateExperienceRepository CandidateExperiences =>
+        _candidateExperiences ??= new CandidateExperienceRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

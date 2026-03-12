@@ -6,6 +6,5 @@ namespace Domain.Enums;
 public enum UserRole
 {
     Admin = 0,
-    Standard = 1,
-    Junior = 2
+    Standard = 1
 }
