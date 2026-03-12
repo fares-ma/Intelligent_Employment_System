@@ -29,6 +29,9 @@ public class SkillService : ISkillService
         if (string.IsNullOrWhiteSpace(request.SkillName) || request.SkillName.Length > 100)
             throw new BadRequestException("Skill name is required (max 100 characters)");
 
+        if ((int)request.Level < 1 || (int)request.Level > 3)
+            throw new BadRequestException("Level must be between 1 (Beginner) and 3 (Expert)");
+
         var candidate = await _unitOfWork.Candidates.GetByIdAsync(candidateId);
         if (candidate is null)
             throw new NotFoundException($"Candidate with ID '{candidateId}' not found");
@@ -48,7 +51,6 @@ public class SkillService : ISkillService
         }
 
         // Check if candidate already has this skill
-        var candidateSkills = await _unitOfWork.Skills.FindAsync(s => s.Name == request.SkillName);
         if (candidate.CandidateSkills?.Any(cs => cs.SkillId == skill.Id) == true)
             throw new BadRequestException($"Skill '{request.SkillName}' already exists in your profile");
 
@@ -103,6 +105,9 @@ public class SkillService : ISkillService
 
         if (!int.TryParse(skillId, out var id))
             throw new BadRequestException("Invalid skill ID");
+
+        if ((int)request.Level < 1 || (int)request.Level > 3)
+            throw new BadRequestException("Level must be between 1 (Beginner) and 3 (Expert)");
 
         var candidate = await _unitOfWork.Candidates.GetByIdAsync(candidateId);
         if (candidate is null)

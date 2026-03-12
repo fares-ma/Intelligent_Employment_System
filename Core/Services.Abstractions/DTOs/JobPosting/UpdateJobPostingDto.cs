@@ -41,12 +41,12 @@ public class UpdateJobPostingDto
     public DateTime? ApplicationDeadline { get; set; }
 
     /// <summary>
-    /// Is the job posting active
+    /// Is the job posting active (null means no change)
     /// </summary>
-    public bool IsActive { get; set; }
+    public bool? IsActive { get; set; }
 
     /// <summary>
-    /// Comma-separated skill IDs required for this position (optional)
+    /// List of required skill IDs for this position (optional)
     /// </summary>
     public List<int> RequiredSkillIds { get; set; } = new();
 }

@@ -11,8 +11,9 @@ public class UpdateJobApplicationDto
     public string Status { get; set; } = string.Empty;
 
     /// <summary>
-    /// Recruiter notes (stored as RecruiterNotes, max 500 characters)
+    /// Recruiter notes or rejection reason (max 500 characters, required if status is Rejected)
     /// </summary>
+    [System.ComponentModel.DataAnnotations.StringLength(500)]
     public string? RejectionReason { get; set; }
 
     /// <summary>

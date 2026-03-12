@@ -41,7 +41,7 @@ public class CreateJobPostingDto
     public DateTime? ApplicationDeadline { get; set; }
 
     /// <summary>
-    /// Comma-separated skill IDs required for this position (optional)
+    /// List of required skill IDs for this position (optional)
     /// </summary>
     public List<int> RequiredSkillIds { get; set; } = new();
 }

@@ -118,19 +118,21 @@ public class JobPostingService : IJobPostingService
         jobPost.Title = request.Title;
         jobPost.Description = request.Description;
         jobPost.ExpiryDate = request.ApplicationDeadline;
-        jobPost.IsActive = request.IsActive;
+        if (request.IsActive.HasValue)
+            jobPost.IsActive = request.IsActive.Value;
         jobPost.UpdatedAt = DateTime.UtcNow;
 
         // Update required skills
-        jobPost.JobPostSkills?.Clear();
+        jobPost.JobPostSkills ??= new List<JobPostSkill>();
+        jobPost.JobPostSkills.Clear();
         if (request.RequiredSkillIds.Any())
         {
             foreach (var skillId in request.RequiredSkillIds)
             {
                 var skill = await _unitOfWork.Skills.GetByIdAsync(skillId);
-                if (skill is not null)
+                if (skill != null)
                 {
-                    jobPost.JobPostSkills?.Add(new JobPostSkill { SkillId = skillId });
+                    jobPost.JobPostSkills.Add(new JobPostSkill { JobPostId = jobPost.Id, SkillId = skillId });
                 }
             }
         }
@@ -172,10 +174,10 @@ public class JobPostingService : IJobPostingService
         );
 
         return jobPosts
+            .OrderByDescending(j => j.CreatedAt)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .Select(MapToDto)
-            .OrderByDescending(j => j.CreatedAt)
             .ToList();
     }
 
@@ -192,10 +194,10 @@ public class JobPostingService : IJobPostingService
         );
 
         return jobPosts
+            .OrderByDescending(j => j.CreatedAt)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .Select(MapToDto)
-            .OrderByDescending(j => j.CreatedAt)
             .ToList();
     }
 

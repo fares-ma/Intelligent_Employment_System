@@ -1,8 +1,10 @@
 using Domain.Contracts;
 using Domain.Exceptions;
 using Domain.Models;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Services.Abstractions;
+using Services.Abstractions.DTOs.InviteCode;
 
 namespace Services;
 
@@ -68,20 +70,19 @@ public class InviteCodeService : IInviteCodeService
         return code;
     }
 
-    public async Task<IEnumerable<dynamic>> GetActiveCodesAsync(int companyId)
+    public async Task<IEnumerable<InviteCodeDto>> GetActiveCodesAsync(int companyId)
     {
         var codes = await _inviteCodeRepository.GetActiveByCompanyAsync(companyId);
         
-        return codes.Select(c => new
+        return codes.Select(c => new InviteCodeDto
         {
-            c.Id,
-            c.Code,
-            c.MaxUses,
-            c.CurrentUses,
-            RemainingUses = c.MaxUses - c.CurrentUses,
-            c.ExpiresAt,
-            c.CreatedAt,
-            c.IsActive
+            Id = c.Id,
+            Code = c.Code,
+            MaxUses = c.MaxUses,
+            CurrentUses = c.CurrentUses,
+            ExpiresAt = c.ExpiresAt,
+            CreatedAt = c.CreatedAt,
+            IsActive = c.IsActive
         });
     }
 
@@ -119,10 +120,19 @@ public class InviteCodeService : IInviteCodeService
         // Consume the code
         inviteCode.CurrentUses++;
         _inviteCodeRepository.Update(inviteCode);
-        await _unitOfWork.SaveChangesAsync();
+        
+        try
+        {
+            await _unitOfWork.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Another thread consumed the code simultaneously - likely exceeded max uses
+            throw new BadRequestException("Invite code has reached its usage limit");
+        }
 
-        _logger.LogInformation("Invite code {Code} used. Remaining uses: {Remaining}/{Max}",
-            code, inviteCode.MaxUses - inviteCode.CurrentUses, inviteCode.MaxUses);
+        _logger.LogInformation("Invite code used. Remaining uses: {Remaining}/{Max}",
+            inviteCode.MaxUses - inviteCode.CurrentUses, inviteCode.MaxUses);
 
         return inviteCode.CompanyId;
     }

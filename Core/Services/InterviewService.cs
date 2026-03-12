@@ -230,11 +230,14 @@ public class InterviewService : IInterviewService
         if (!Enum.TryParse<InterviewStatus>(status, true, out var interviewStatus))
             throw new ArgumentException("Invalid status value");
 
+        // Apply sorting before pagination to avoid incorrect pages
         var interviews = await _unitOfWork.Interviews.FindAsync(i => i.Status == interviewStatus);
 
+        var skip = (pageNumber - 1) * pageSize;
         var dtos = new List<InterviewDto>();
         foreach (var interview in interviews
-            .Skip((pageNumber - 1) * pageSize)
+            .OrderByDescending(i => i.CreatedAt)
+            .Skip(skip)
             .Take(pageSize))
         {
             dtos.Add(await MapToDtoAsync(interview));

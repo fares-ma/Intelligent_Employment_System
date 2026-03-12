@@ -29,5 +29,5 @@ public class AdminTransferResponseDto
     /// <summary>
     /// When the transfer was completed
     /// </summary>
-    public DateTime TransferedAt { get; set; }
+    public DateTime TransferredAt { get; set; }
 }

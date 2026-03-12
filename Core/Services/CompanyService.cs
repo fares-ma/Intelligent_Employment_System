@@ -199,7 +199,7 @@ public class CompanyService : ICompanyService
             CompanyId = id.ToString(),
             PreviousAdminId = currentAdminId,
             NewAdminId = newAdmin.Id,
-            TransferedAt = DateTime.UtcNow
+            TransferredAt = DateTime.UtcNow
         };
     }
 

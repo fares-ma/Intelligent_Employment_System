@@ -1,5 +1,7 @@
 namespace Services.Abstractions;
 
+using Services.Abstractions.DTOs.InviteCode;
+
 public interface IInviteCodeService
 {
     /// <summary>
@@ -10,7 +12,7 @@ public interface IInviteCodeService
     /// <summary>
     /// Get all active invite codes for a company (pagination ready)
     /// </summary>
-    Task<IEnumerable<dynamic>> GetActiveCodesAsync(int companyId);
+    Task<IEnumerable<InviteCodeDto>> GetActiveCodesAsync(int companyId);
 
     /// <summary>
     /// Revoke/deactivate an invite code
