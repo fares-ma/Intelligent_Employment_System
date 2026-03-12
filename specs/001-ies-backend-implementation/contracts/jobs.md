@@ -25,7 +25,7 @@ Create a new job post.
   "currency": "string? (max 10, default 'EGP')",
   "expiryDate": "string? (ISO 8601, must be future)",
   "isPublished": "bool (default false)",
-  "skillIds": ["int (array of existing skill IDs)"]
+  "skills": ["{ name: string, requiredLevel: int (1=Beginner, 2=Intermediate, 3=Expert) }"]
 }
 ```
 
@@ -34,9 +34,11 @@ Create a new job post.
 |--------|------|-----------|
 | 201 | `JobDetailDto` | Created |
 | 400 | Error | Validation error |
-| 403 | Error | Junior recruiter (insufficient role) |
 
-**Notes**: Job is automatically linked to the recruiter's company.
+**Notes**:
+- Job is automatically linked to the recruiter's company
+- Skill names are matched against the Skills table (case-insensitive); unknown names return 400
+- Both Admin and Standard recruiters can create jobs
 
 ---
 
@@ -81,7 +83,7 @@ Search and browse published jobs (public).
   "salaryMin": "decimal?",
   "salaryMax": "decimal?",
   "currency": "string?",
-  "skills": ["{ id, name }"],
+  "skills": ["{ id, name, requiredLevel }"],
   "applicantsCount": "int",
   "createdAt": "string",
   "expiryDate": "string?"
@@ -120,7 +122,7 @@ Get job post details.
   "isPublished": "bool",
   "isActive": "bool",
   "company": "{ id, name, industry, logoPath }",
-  "skills": ["{ id, name, isRequired }"],
+  "skills": ["{ id, name, requiredLevel, isRequired }"],
   "applicantsCount": "int",
   "similarJobs": ["{ id, title, companyName, location }"],
   "createdAt": "string",
@@ -154,16 +156,22 @@ Update a job post.
 
 ## DELETE /api/jobs/{jobId}
 
-Delete a job post.
+Soft-delete a job post.
 
 **Authorization**: Bearer JWT (Recruiter — must be creator or Admin of the same company)
 
 **Responses**:
 | Status | Body | Condition |
 |--------|------|-----------|
-| 204 | *(no body)* | Deleted |
+| 204 | *(no body)* | Soft-deleted |
 | 403 | Error | Not authorized |
 | 404 | Error | Not found |
+
+**Notes**:
+- Sets `DeletedAt` = now and `DeletedBy` = current user ID
+- Soft-deleted jobs are excluded from all public queries and listing endpoints
+- Associated applications are also soft-deleted
+- This action is irreversible via API
 
 ---
 
@@ -293,7 +301,28 @@ Change application status (move through pipeline).
 | 403 | Error | Not authorized |
 | 404 | Error | Application not found |
 
-**Notes**: Enforces strict sequential pipeline. See data-model.md for valid transitions.
+**Notes**: Enforces strict sequential pipeline. See data-model.md for valid transitions. Withdrawn (6) is a terminal state that can only be set by the candidate via the withdraw endpoint (see below).
+
+---
+
+## POST /api/jobs/{jobId}/applicants/{applicationId}/withdraw
+
+Withdraw a job application (candidate only).
+
+**Authorization**: Bearer JWT (Candidate — must own this application)
+
+**Responses**:
+| Status | Body | Condition |
+|--------|------|-----------|
+| 200 | `{ applicationId, previousStatus, newStatus: 6 }` | Withdrawn |
+| 400 | Error | Application is not in Pending status |
+| 403 | Error | Not the applicant |
+| 404 | Error | Application not found |
+
+**Notes**:
+- Only applications in `Pending` (0) status can be withdrawn
+- Withdrawn is a terminal state — no further transitions allowed
+- The candidate cannot re-apply to the same job after withdrawing
 
 ---
 

@@ -52,6 +52,8 @@
 - Has many `JobApplication`
 - Has many `SavedJob`
 - Has many `CandidateAssessment`
+- Has many `CandidateEducation`
+- Has many `CandidateExperience`
 
 ---
 
@@ -80,7 +82,6 @@
 | PhoneNumber | string? | max 20 | |
 | Description | string? | max 2000 | |
 | LogoPath | string? | max 500 | |
-| IsVerified | bool | Default: false | Admin verification flag |
 | IsActive | bool | Default: true | |
 | CreatedAt | DateTime | Required, auto-set | UTC |
 | UpdatedAt | DateTime? | | UTC |
@@ -88,6 +89,7 @@
 **Relationships**:
 - Has many `Recruiter`
 - Has many `JobPost`
+- Has many `CompanyInviteCode`
 
 **Validation Rules**:
 - TaxNumber is immutable once set (cannot be updated)
@@ -95,7 +97,32 @@
 
 ---
 
-### 5. JobPost
+### 5. CompanyInviteCode
+
+| Field | Type | Constraints | Notes |
+|---|---|---|---|
+| Id | int | PK, auto-increment | |
+| CompanyId | int | Required, FK | |
+| Code | string | Required, unique, length 6 | Alphanumeric, e.g. "XK7M2P" |
+| MaxUses | int | Required, default: 5 | |
+| CurrentUses | int | Required, default: 0 | |
+| ExpiresAt | DateTime | Required | UTC |
+| CreatedByRecruiterId | string | Required, FK | Admin who generated |
+| IsActive | bool | Default: true | Can be revoked |
+| CreatedAt | DateTime | Required, auto-set | UTC |
+
+**Relationships**:
+- Belongs to one `Company`
+- Belongs to one `Recruiter` (creator)
+
+**Validation Rules**:
+- Code is 6 uppercase alphanumeric characters
+- Only Admin Recruiters can generate codes
+- Code is invalid if IsActive = false, CurrentUses ≥ MaxUses, or ExpiresAt < now
+
+---
+
+### 6. JobPost
 
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
@@ -117,6 +144,8 @@
 | CreatedByRecruiterId | string | Required, FK | |
 | CreatedAt | DateTime | Required, auto-set | UTC |
 | UpdatedAt | DateTime? | | UTC |
+| DeletedAt | DateTime? | | Soft delete timestamp (UTC) |
+| DeletedBy | string? | FK → ApplicationUser | Null = system, userId = user |
 
 **Relationships**:
 - Belongs to one `Company`
@@ -127,11 +156,12 @@
 
 **Validation Rules**:
 - SalaryMax ≥ SalaryMin when both are provided
-- Only published + active + non-expired jobs appear in public listings
+- Only published + active + non-expired + non-deleted jobs appear in public listings
+- Soft-deleted jobs are hidden from search but visible to existing applicants
 
 ---
 
-### 6. Resume
+### 7. Resume
 
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
@@ -155,7 +185,7 @@
 
 ---
 
-### 7. JobApplication
+### 8. JobApplication
 
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
@@ -164,12 +194,14 @@
 | JobPostId | int | Required, FK | |
 | ResumeId | int | Required, FK | Resume used for this application |
 | Status | int (enum) | Required, default: Pending | See ApplicationStatus enum |
-| MatchScore | decimal? | 0.00–100.00, precision(5,2) | Null = pending AI scoring |
+| MatchScore | decimal? | 0.00–100.00, precision(5,2) | Null = processing, 0.0 = calculated zero |
 | MatchReport | string? | max 5000 | AI-generated analysis |
 | RecruiterRating | int? | 1–5 | Set by recruiter |
 | RecruiterNotes | string? | max 2000 | |
 | AppliedAt | DateTime | Required, auto-set | UTC |
 | UpdatedAt | DateTime? | | UTC |
+| DeletedAt | DateTime? | | Soft delete timestamp (UTC) |
+| DeletedBy | string? | FK → ApplicationUser | Null = system, userId = user |
 
 **Relationships**:
 - Belongs to one `CandidateUser`
@@ -185,7 +217,7 @@
 
 ---
 
-### 8. Skill
+### 9. Skill
 
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
@@ -200,7 +232,7 @@
 
 ---
 
-### 9. Assessment
+### 10. Assessment
 
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
@@ -222,7 +254,7 @@
 
 ---
 
-### 10. Question
+### 11. Question
 
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
@@ -240,7 +272,7 @@
 
 ---
 
-### 11. Interview
+### 12. Interview
 
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
@@ -250,11 +282,11 @@
 | Status | int (enum) | Required, default: Scheduled | See InterviewStatus enum |
 | ScheduledAt | DateTime | Required | UTC |
 | DurationMinutes | int | Required, default: 30 | |
-| MeetingLink | string? | max 500 | For live interviews |
-| AiQuestions | string? | max 5000 | JSON — AI-generated questions |
-| AiTranscript | string? | max 10000 | AI interview transcript |
+| MeetingLink | string? | max 500 | For live interviews (WebRTC provider) |
+| AiQuestions | string? | max 5000 | JSON — AI-generated text questions |
+| AiAnswers | string? | max 10000 | JSON — Candidate's written answers |
 | Score | decimal? | 0.00–100.00, precision(5,2) | |
-| FeedbackNotes | string? | max 2000 | Recruiter feedback |
+| FeedbackNotes | string? | max 2000 | Recruiter or AI feedback |
 | CompletedAt | DateTime? | | UTC |
 | CreatedAt | DateTime | Required, auto-set | UTC |
 
@@ -263,7 +295,7 @@
 
 ---
 
-### 12. SavedJob *(junction entity)*
+### 13. SavedJob *(junction entity)*
 
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
@@ -277,12 +309,13 @@
 
 ---
 
-### 13. CandidateSkill *(junction entity)*
+### 14. CandidateSkill *(junction entity)*
 
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
 | CandidateId | string | PK (composite), FK | |
 | SkillId | int | PK (composite), FK | |
+| Level | int (enum) | Required, default: Beginner | See SkillLevel enum |
 
 **Relationships**:
 - Belongs to one `CandidateUser`
@@ -290,13 +323,14 @@
 
 ---
 
-### 14. JobPostSkill *(junction entity)*
+### 15. JobPostSkill *(junction entity)*
 
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
 | JobPostId | int | PK (composite), FK | |
 | SkillId | int | PK (composite), FK | |
 | IsRequired | bool | Default: true | Required vs nice-to-have |
+| RequiredLevel | int? (enum) | | See SkillLevel enum. Null = any level |
 
 **Relationships**:
 - Belongs to one `JobPost`
@@ -304,7 +338,7 @@
 
 ---
 
-### 15. ResumeSkill *(junction entity)*
+### 16. ResumeSkill *(junction entity)*
 
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
@@ -318,7 +352,7 @@
 
 ---
 
-### 16. CandidateAssessment *(junction entity)*
+### 17. CandidateAssessment *(junction entity)*
 
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
@@ -344,7 +378,42 @@
 
 ---
 
-### 17. Notification
+### 18. CandidateEducation
+
+| Field | Type | Constraints | Notes |
+|---|---|---|---|
+| Id | int | PK, auto-increment | |
+| CandidateId | string | Required, FK | |
+| Degree | string | Required, max 200 | e.g., "BSc", "MSc", "PhD" |
+| FieldOfStudy | string | Required, max 200 | e.g., "Computer Science" |
+| Institution | string | Required, max 300 | |
+| GraduationYear | int | Required | 4-digit year |
+| CreatedAt | DateTime | Required, auto-set | UTC |
+
+**Relationships**:
+- Belongs to one `CandidateUser`
+
+---
+
+### 19. CandidateExperience
+
+| Field | Type | Constraints | Notes |
+|---|---|---|---|
+| Id | int | PK, auto-increment | |
+| CandidateId | string | Required, FK | |
+| JobTitle | string | Required, max 200 | |
+| Company | string | Required, max 200 | |
+| Description | string? | max 500 | |
+| StartDate | DateTime | Required | |
+| EndDate | DateTime? | | Null = currently employed |
+| CreatedAt | DateTime | Required, auto-set | UTC |
+
+**Relationships**:
+- Belongs to one `CandidateUser`
+
+---
+
+### 20. Notification
 
 | Field | Type | Constraints | Notes |
 |---|---|---|---|
@@ -377,9 +446,8 @@
 ### UserRole *(Recruiter role within company)*
 | Value | Name | Permissions |
 |---|---|---|
-| 0 | Admin | Full company management + all recruiter actions |
-| 1 | Standard | Post jobs, manage applicants, schedule interviews |
-| 2 | Junior | View applicants, add ratings — no job management |
+| 0 | Admin | Full company management, invite codes, transfer admin, all recruiter actions |
+| 1 | Standard | Post jobs, manage own jobs, manage applicants, schedule interviews |
 
 ### ApplicationStatus
 | Value | Name |
@@ -390,6 +458,7 @@
 | 3 | Interview |
 | 4 | Accepted |
 | 5 | Rejected |
+| 6 | Withdrawn |
 
 ### InterviewType
 | Value | Name |
@@ -456,6 +525,13 @@
 | 3 | Tool |
 | 4 | Other |
 
+### SkillLevel *(proficiency level)*
+| Value | Name |
+|---|---|
+| 1 | Beginner |
+| 2 | Intermediate |
+| 3 | Expert |
+
 ---
 
 ## State Transitions
@@ -463,8 +539,10 @@
 ### ApplicationStatus Pipeline
 
 ```text
-Pending ──→ UnderReview ──→ Assessment ──→ Interview ──→ Accepted
-  │              │               │             │
+                                                             ┌──→ Accepted
+Pending ──→ UnderReview ──→ Assessment ──→ Interview ──┤
+  │  │           │               │             │       └──→ Rejected
+  │  └──→ Withdrawn (by candidate)
   └──→ Rejected  └──→ Rejected   └──→ Rejected └──→ Rejected
 ```
 
@@ -472,17 +550,20 @@ Pending ──→ UnderReview ──→ Assessment ──→ Interview ──→
 - Strictly sequential — no stage skipping allowed
 - No backwards movement (cannot go from Interview back to Assessment)
 - Rejection is allowed from any active stage
-- Once Accepted or Rejected, the status is terminal (no further changes)
+- Withdrawal is only allowed by the candidate when status = Pending (terminal state)
+- Once Accepted, Rejected, or Withdrawn, the status is terminal (no further changes)
+- Re-application to the same job after Withdrawn is NOT allowed
 
 **Valid Transitions**:
 | From | To (allowed) |
 |---|---|
-| Pending | UnderReview, Rejected |
+| Pending | UnderReview, Rejected, Withdrawn |
 | UnderReview | Assessment, Rejected |
 | Assessment | Interview, Rejected |
 | Interview | Accepted, Rejected |
 | Accepted | *(terminal)* |
 | Rejected | *(terminal)* |
+| Withdrawn | *(terminal)* |
 
 ### InterviewStatus Flow
 
@@ -507,7 +588,9 @@ Scheduled ──→ InProgress ──→ Completed
 ```text
 Company (1) ───── (M) Recruiter
 Company (1) ───── (M) JobPost
+Company (1) ───── (M) CompanyInviteCode
 Recruiter (1) ─── (M) JobPost (creator)
+Recruiter (1) ─── (M) CompanyInviteCode (creator)
 
 CandidateUser (M) ── CandidateSkill ── (M) Skill
 JobPost (M) ──────── JobPostSkill ───── (M) Skill
@@ -515,6 +598,8 @@ Resume (M) ────────── ResumeSkill ────── (M) Ski
 
 CandidateUser (1) ── (M) Resume
 CandidateUser (1) ── (M) JobApplication
+CandidateUser (1) ── (M) CandidateEducation
+CandidateUser (1) ── (M) CandidateExperience
 CandidateUser (M) ── SavedJob ── (M) JobPost
 
 JobPost (1) ──────── (M) JobApplication
@@ -541,10 +626,13 @@ ApplicationUser (1) ── (M) Notification
 | CandidateAssessment | (CandidateId, AssessmentId) | Unique | One attempt per assessment |
 | Company | TaxNumber | Unique | Business rule |
 | Skill | Name | Unique | Prevent duplicates |
-| JobPost | (IsPublished, IsActive, ExpiryDate) | Composite | Public listing filter queries |
+| CompanyInviteCode | Code | Unique | Fast lookup by invite code |
+| JobPost | (IsPublished, IsActive, ExpiryDate, DeletedAt) | Composite | Public listing filter queries |
 | JobPost | CompanyId | Non-unique | Company jobs lookup |
 | JobApplication | JobPostId | Non-unique | Applicants per job |
 | JobApplication | CandidateId | Non-unique | Candidate's applications |
 | SavedJob | CandidateId | Non-unique | Candidate's saved jobs |
 | Notification | UserId | Non-unique | User's notifications lookup |
 | Notification | (UserId, IsRead) | Composite | Unread notifications filter |
+| CandidateEducation | CandidateId | Non-unique | Candidate's education lookup |
+| CandidateExperience | CandidateId | Non-unique | Candidate's experience lookup |

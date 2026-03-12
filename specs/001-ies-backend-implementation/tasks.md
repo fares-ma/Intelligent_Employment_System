@@ -3,7 +3,7 @@
 **Input**: Design documents from `/specs/001-ies-backend-implementation/`
 **Prerequisites**: plan.md ✅, spec.md ✅, research.md ✅, data-model.md ✅, contracts/ ✅, quickstart.md ✅
 
-**Tests**: Not explicitly requested in the feature specification. Test tasks are omitted.
+**Tests**: Unit Tests for services (xUnit + Moq) + Integration Tests for Auth (WebApplicationFactory). Test tasks in Phase 12.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -110,353 +110,315 @@
 
 ---
 
-## Phase 5: User Story 3 — Company Registration & Management (Priority: P1)
+## Phase 5: Auth Retrofit + Domain Updates (Design Review Changes)
 
-**Goal**: Super-admin creates companies (with unique tax number), admin recruiters edit company info and manage recruiters, public company listing.
+**Purpose**: Apply all Session 2 design decisions to existing code: add new entities/enums, remove deprecated features, add 2 new registration endpoints, invite code system.
 
-**Independent Test**: Create a company, add a recruiter, edit company details, verify public company data accessible.
+**⚠️ CRITICAL**: This phase modifies existing implemented code. Must be done before any new user story.
 
-### Implementation for User Story 3
+### 5A: Domain Model Updates
 
-- [ ] T042 [P] [US3] Create ICompanyRepository interface in Core/Domain/Contracts/ICompanyRepository.cs and IRecruiterRepository interface in Core/Domain/Contracts/IRecruiterRepository.cs
-- [ ] T043 [P] [US3] Create company DTOs in Core/Services.Abstractions/DTOs/Companies/: CompanyDto.cs, CompanyDetailDto.cs, CreateCompanyDto.cs, UpdateCompanyDto.cs, AddRecruiterDto.cs, RecruiterDto.cs, CompanyDashboardDto.cs
-- [ ] T044 [P] [US3] Create ICompanyService interface in Core/Services.Abstractions/ICompanyService.cs with CreateAsync, GetByIdAsync, GetAllAsync, UpdateAsync, UploadLogoAsync, AddRecruiterAsync, GetRecruitersAsync, GetCompanyJobsAsync
-- [ ] T045 [US3] Implement CompanyRepository in Infrastructure/Persistence/Repositories/CompanyRepository.cs and RecruiterRepository in Infrastructure/Persistence/Repositories/RecruiterRepository.cs
-- [ ] T046 [US3] Implement CompanyService in Core/Services/CompanyService.cs: create company (unverified), enforce unique tax number (immutable), update company (admin recruiter of same company only), add recruiter (verify admin role), list recruiters per contracts/companies.md
-- [ ] T047 [US3] Create CompaniesController in Infrastructure/Presentation/Controllers/CompaniesController.cs with endpoints: POST /api/companies [Admin], GET /api/companies (public, paginated), GET /api/companies/{id} (public), PUT /api/companies/{id} [AdminRecruiter], PUT /api/companies/{id}/logo [AdminRecruiter] (multipart), POST /api/companies/{id}/recruiters [AdminRecruiter], GET /api/companies/{id}/recruiters [Recruiter], GET /api/companies/{id}/jobs (public) per contracts/companies.md
-- [ ] T048 [US3] Create AutoMapper profile for Company DTOs in Core/Services/Mapping/CompanyMappingProfile.cs
+- [ ] T042 [P] Add SkillLevel enum in Core/Domain/Enums/SkillLevel.cs (Beginner=1, Intermediate=2, Expert=3)
+- [ ] T043 [P] Remove Junior (value 2) from UserRole enum in Core/Domain/Enums/UserRole.cs — keep only Admin=0, Standard=1
+- [ ] T044 [P] Add Withdrawn=6 to ApplicationStatus enum in Core/Domain/Enums/ApplicationStatus.cs
+- [ ] T045 [P] Create CompanyInviteCode entity in Core/Domain/Models/CompanyInviteCode.cs (Id, CompanyId FK, Code unique 6-char, MaxUses default 5, CurrentUses default 0, ExpiresAt, CreatedByRecruiterId FK, IsActive, CreatedAt)
+- [ ] T046 [P] Create CandidateEducation entity in Core/Domain/Models/CandidateEducation.cs (Id, CandidateId FK, Degree, FieldOfStudy, Institution, GraduationYear int, CreatedAt)
+- [ ] T047 [P] Create CandidateExperience entity in Core/Domain/Models/CandidateExperience.cs (Id, CandidateId FK, JobTitle, Company, Description max 500, StartDate, EndDate?, CreatedAt)
+- [ ] T048 Add Level (SkillLevel enum, required, default Beginner) to CandidateSkill in Core/Domain/Models/CandidateSkill.cs
+- [ ] T049 Remove IsVerified from Company in Core/Domain/Models/Company.cs. Add nav prop: ICollection CompanyInviteCode
+- [ ] T050 Add nav props to CandidateUser.cs: ICollection CandidateEducation, ICollection CandidateExperience
+- [ ] T051 [P] Add DeletedAt (DateTime?) and DeletedBy (string?) to JobPost entity for soft delete
+- [ ] T052 [P] Add DeletedAt (DateTime?) and DeletedBy (string?) to JobApplication entity for soft delete
 
-**Checkpoint**: User Story 3 fully functional — company management, recruiter assignment, public company views all working
+### 5B: Repository and EF Config Updates
 
----
+- [ ] T053 [P] Create ICompanyInviteCodeRepository in Core/Domain/Contracts/ with GetByCodeAsync, GetActiveByCompanyAsync
+- [ ] T054 [P] Create ICandidateEducationRepository in Core/Domain/Contracts/ with GetByCandidateAsync
+- [ ] T055 [P] Create ICandidateExperienceRepository in Core/Domain/Contracts/ with GetByCandidateAsync
+- [ ] T056 [P] Create ICompanyRepository and IRecruiterRepository in Core/Domain/Contracts/
+- [ ] T057 Add new repositories to IUnitOfWork interface
+- [ ] T058 [P] Create CompanyInviteCodeConfig.cs in Infrastructure/Persistence/Data/Configurations/ (Code unique index)
+- [ ] T059 [P] Create CandidateEducationConfig.cs and CandidateExperienceConfig.cs in Infrastructure/Persistence/Data/Configurations/
+- [ ] T060 Update CompanyConfig.cs: remove IsVerified column
+- [ ] T061 Update CandidateSkill config: add Level column with enum conversion
+- [ ] T062 Implement new repositories in Infrastructure/Persistence/Repositories/
+- [ ] T063 Register new repositories in UnitOfWork.cs
 
-## Phase 6: User Story 4 — Job Posting & Management (Priority: P1)
+### 5C: Auth Retrofit (3 Registration Endpoints)
 
-**Goal**: Recruiters create/edit/delete/publish jobs with skills, salary, and filters. Public job search with pagination. Similar jobs via rule-based matching.
+- [ ] T064 [P] Create RegisterCompanyRequestDto.cs (personal 7 fields + Company Name, TaxNumber, Industry, Website?) and RegisterRecruiterRequestDto.cs (personal 7 fields + InviteCode)
+- [ ] T065 [P] Create IInviteCodeService interface in Core/Services.Abstractions/ with GenerateAsync, GetActiveCodesAsync, RevokeAsync, ValidateAndUseAsync
+- [ ] T066 Refactor AuthService: keep RegisterAsync for Candidate only. Add RegisterCompanyAsync (creates Company + Admin Recruiter). Add RegisterRecruiterAsync (validates invite code, creates Standard Recruiter)
+- [ ] T067 Implement InviteCodeService in Core/Services/InviteCodeService.cs
+- [ ] T068 Update AuthController: keep POST /api/auth/register (Candidate), add POST /api/auth/register/company, add POST /api/auth/register/recruiter
+- [ ] T069 Update AutoMapper for new auth DTOs
 
-**Independent Test**: Create a draft job, publish it, search with filters, verify it appears in listings with applicants count and similar jobs.
+### 5D: Migration
 
-### Implementation for User Story 4
+- [ ] T070 Add EF migration: DesignReviewUpdates (SkillLevel, Withdrawn, CompanyInviteCode, Education, Experience, remove IsVerified, soft delete fields)
 
-- [ ] T049 [P] [US4] Create JobPost entity in Core/Domain/Models/JobPost.cs with all fields per data-model.md (Title, Description, AiProcessedDescription, Location, JobType, WorkLocation, CareerLevel, SalaryMin/Max, Currency, ExpiryDate, IsPublished, IsActive, CompanyId FK, CreatedByRecruiterId FK)
-- [ ] T050 [P] [US4] Create IJobPostRepository interface in Core/Domain/Contracts/IJobPostRepository.cs with GetPublishedJobsAsync(filters, pagination), GetByIdWithSkillsAsync, GetSimilarJobsAsync, GetCompanyJobsAsync
-- [ ] T051 [P] [US4] Create JobPostConfig.cs in Infrastructure/Persistence/Data/Configurations/JobPostConfig.cs with composite index (IsPublished, IsActive, ExpiryDate), CompanyId index, field constraints, relationships per data-model.md
-- [ ] T052 [P] [US4] Create job DTOs in Core/Services.Abstractions/DTOs/Jobs/: JobListDto.cs, JobDetailDto.cs, CreateJobDto.cs, UpdateJobDto.cs, PublishJobDto.cs, JobFilterParams.cs
-- [ ] T053 [P] [US4] Create IJobPostService interface in Core/Services.Abstractions/IJobPostService.cs with CreateAsync, GetByIdAsync, SearchAsync, UpdateAsync, DeleteAsync, PublishAsync, GetRecruiterJobsAsync, GetSimilarJobsAsync
-- [ ] T054 [US4] Implement JobPostRepository in Infrastructure/Persistence/Repositories/JobPostRepository.cs with published jobs filtering (IsPublished && IsActive && !expired), Include skills, similar jobs query (shared skills + same career level + same industry), paginated results
-- [ ] T055 [US4] Implement JobPostService in Core/Services/JobPostService.cs: create job linked to recruiter's company, draft/publish toggle, update (creator or admin of same company), delete, search with all filters (location, jobType, workLocation, careerLevel, industry, salaryMin/Max), similar jobs via rule-based matching per contracts/jobs.md
-- [ ] T056 [US4] Create JobsController in Infrastructure/Presentation/Controllers/JobsController.cs with endpoints: POST /api/jobs [Recruiter], GET /api/jobs (public, filtered, paginated), GET /api/jobs/{id} (public, includes applicantsCount + similarJobs), PUT /api/jobs/{id} [Recruiter], DELETE /api/jobs/{id} [Recruiter], PATCH /api/jobs/{id}/publish [Recruiter], GET /api/jobs/recruiter [Recruiter] per contracts/jobs.md
-- [ ] T057 [US4] Create AutoMapper profile for Job DTOs in Core/Services/Mapping/JobMappingProfile.cs
-- [ ] T058 [US4] Add EF migration for JobPost entity: dotnet ef migrations add AddJobPost --project Infrastructure/Persistence --startup-project IES.api
-
-**Checkpoint**: User Story 4 fully functional — job CRUD, publish/unpublish, search with filters, similar jobs all working. MVP complete (US1-US4).
-
----
-
-## Phase 7: User Story 5 — Job Application & Tracking (Priority: P2)
-
-**Goal**: Candidates apply for jobs (resume required, no duplicates), AI scoring triggered on submit, track application status, save/bookmark jobs.
-
-**Independent Test**: Apply for a job, verify application recorded with Pending status, check AI scoring triggered, track status, toggle save job.
-
-### Implementation for User Story 5
-
-- [ ] T059 [P] [US5] Create JobApplication entity in Core/Domain/Models/JobApplication.cs with all fields per data-model.md (CandidateId, JobPostId, ResumeId FKs, Status, MatchScore, MatchReport, RecruiterRating, RecruiterNotes, AppliedAt)
-- [ ] T060 [P] [US5] Create IJobApplicationRepository interface in Core/Domain/Contracts/IJobApplicationRepository.cs with GetByCandidateAsync(pagination), GetByJobPostAsync(filters, pagination), ExistsAsync(candidateId, jobPostId)
-- [ ] T061 [P] [US5] Create JobApplicationConfig.cs in Infrastructure/Persistence/Data/Configurations/JobApplicationConfig.cs with unique index (CandidateId, JobPostId), status enum conversion, decimal precision for MatchScore, indexes per data-model.md
-- [ ] T062 [P] [US5] Create application DTOs in Core/Services.Abstractions/DTOs/Applications/: ApplyJobDto.cs, CandidateApplicationDto.cs (if not already created), ApplicationDetailDto.cs
-- [ ] T063 [P] [US5] Create IJobApplicationService interface in Core/Services.Abstractions/IJobApplicationService.cs with ApplyAsync, GetCandidateApplicationsAsync, GetByIdAsync
-- [ ] T064 [US5] Implement AiServiceClient in Infrastructure/Persistence/Services/AiServiceClient.cs: typed HttpClient with IHttpClientFactory, resilience pipeline (retry 3x exponential, circuit breaker 50%/30s, timeout 45s), methods: ScoreResumeAsync, ExtractSkillsAsync, GenerateCvAsync, GenerateAssessmentAsync, GenerateInterviewQuestionsAsync, ScoreInterviewAsync per research.md and contracts/ai.md
-- [ ] T065 [US5] Register AiServiceClient in IES.api/Program.cs: AddHttpClient<IAiServiceClient, AiServiceClient> with base URL from config, add standard resilience handler
-- [ ] T066 [US5] Implement JobApplicationRepository in Infrastructure/Persistence/Repositories/JobApplicationRepository.cs with duplicate check, candidate applications query, job applicants query with sorting/filtering
-- [ ] T067 [US5] Implement JobApplicationService in Core/Services/JobApplicationService.cs: validate resume exists, validate job published, prevent duplicates, create application with Pending status, trigger AI scoring (store null if unavailable per FR-034), get candidate applications with pagination per contracts/jobs.md
-- [ ] T068 [US5] Add apply and saved-jobs endpoints to JobsController: POST /api/jobs/{jobId}/apply [Candidate] (201/400/404/409) per contracts/jobs.md. Add saved-jobs endpoints to CandidatesController: GET /api/candidates/saved-jobs, POST /api/candidates/saved-jobs/{jobPostId} per contracts/candidates.md
-- [ ] T069 [US5] Add EF migration for JobApplication entity: dotnet ef migrations add AddJobApplication --project Infrastructure/Persistence --startup-project IES.api
-
-**Checkpoint**: User Story 5 fully functional — applications with AI scoring, tracking, saved jobs all working
+**Checkpoint**: All design review changes applied. 3 registration endpoints. Invite code system. Domain model fully updated.
 
 ---
 
-## Phase 8: User Story 6 — Applicant Management & Screening (Priority: P2)
+## Phase 6: User Story 3 — Company Management + Admin Transfer (Priority: P1)
 
-**Goal**: Recruiters view applicants sorted by score, filter by status, rate 1-5 stars, change pipeline status (strict sequential), export CSV.
+**Goal**: Admin Recruiter edits company, generates invite codes, transfers admin role. Public company listing.
 
-**Independent Test**: View applicants for a job, set ratings, filter by status, move through pipeline, export to CSV.
+- [ ] T071 [P] [US3] Create company DTOs: CompanyDto, CompanyDetailDto, UpdateCompanyDto, RecruiterDto, InviteCodeDto, GenerateInviteCodeDto, TransferAdminDto
+- [ ] T072 [P] [US3] Create ICompanyService interface with GetByIdAsync, GetAllAsync, UpdateAsync, UploadLogoAsync, GetRecruitersAsync, GetCompanyJobsAsync, TransferAdminAsync
+- [ ] T073 [US3] Implement CompanyService: update (admin only), logo upload, list recruiters, transfer admin (swap roles, same company), public info
+- [ ] T074 [US3] Create CompaniesController: GET /api/companies (public), GET /{id} (public), PUT /{id} [Admin], PUT /{id}/logo [Admin], GET /{id}/recruiters [Recruiter], GET /{id}/jobs (public), PUT /{id}/transfer-admin [Admin], POST /{id}/invite-codes [Admin], GET /{id}/invite-codes [Admin], DELETE /{id}/invite-codes/{codeId} [Admin]
+- [ ] T075 [US3] AutoMapper profile for Company DTOs
 
-### Implementation for User Story 6
-
-- [ ] T070 [P] [US6] Create applicant DTOs in Core/Services.Abstractions/DTOs/Applications/: ApplicantDto.cs (applicationId, candidate summary, status, matchScore, recruiterRating, appliedAt), ApplicantFilterParams.cs, StatusChangeDto.cs, RatingDto.cs, ApplicantCsvExportDto.cs (with CsvHelper [Name] attributes)
-- [ ] T071 [P] [US6] Add methods to IJobApplicationService: GetApplicantsAsync, UpdateStatusAsync (with pipeline validation), SetRatingAsync, ExportApplicantsCsvAsync
-- [ ] T072 [US6] Implement pipeline status validation in JobApplicationService: enforce strict sequential transitions per data-model.md state machine (Pending→UnderReview→Assessment→Interview→Accepted/Rejected, reject from any stage, no skip, no backwards, terminal states)
-- [ ] T073 [US6] Implement CSV export in JobApplicationService using CsvHelper: query applicants, map to ApplicantCsvExportDto, write to MemoryStream with InvariantCulture, return as byte array per research.md
-- [ ] T074 [US6] Add applicant management endpoints to JobsController: GET /api/jobs/{jobId}/applicants [Recruiter] (paginated, filtered, sorted), PATCH /api/jobs/{jobId}/applicants/{applicationId}/status [Recruiter], PATCH /api/jobs/{jobId}/applicants/{applicationId}/rating [Recruiter], GET /api/jobs/{jobId}/applicants/export [Recruiter] (returns CSV file) per contracts/jobs.md
-
-**Checkpoint**: User Story 6 fully functional — applicant list, filtering, rating, pipeline management, CSV export all working
+**Checkpoint**: US3 — company management, invite codes, admin transfer, public views all working
 
 ---
 
-## Phase 9: User Story 7 — AI Resume Scoring & Skill Extraction (Priority: P2)
+## Phase 7: User Story 2 Extension — Education, Experience, Skill Levels (Priority: P1)
 
-**Goal**: AI service integration endpoints: resume analysis with match score, skill extraction from job descriptions, graceful degradation when AI unavailable.
+**Goal**: Candidates add/edit/delete education and experience via CRUD endpoints. Skills include proficiency levels.
 
-**Independent Test**: Submit resume + job to AI analyze endpoint, verify score returned. Submit job description to skill extraction, verify structured skills returned.
+- [ ] T076 [P] [US2] Create education DTOs: CreateEducationDto, UpdateEducationDto, EducationDto
+- [ ] T077 [P] [US2] Create experience DTOs: CreateExperienceDto, UpdateExperienceDto, ExperienceDto
+- [ ] T078 [P] [US2] Update UpdateSkillsDto: skills array with name + level (replace-all semantics)
+- [ ] T079 [US2] Update CandidateProfileDto to include education, experience, skill levels
+- [ ] T080 [US2] Add education/experience CRUD methods to ICandidateService
+- [ ] T081 [US2] Implement education/experience CRUD in CandidateService. Update UpdateSkillsAsync for SkillLevel
+- [ ] T082 [US2] Add education/experience endpoints to CandidatesController: POST/PUT/DELETE education and experience
+- [ ] T083 [US2] Update CandidateMappingProfile for education, experience, skill level mappings
 
-### Implementation for User Story 7
-
-- [ ] T075 [P] [US7] Create AI DTOs in Core/Services.Abstractions/DTOs/Ai/: ExtractSkillsRequestDto.cs, ExtractSkillsResponseDto.cs, AnalyzeResumeRequestDto.cs, AnalyzeResumeResponseDto.cs, GenerateAssessmentRequestDto.cs, GenerateAssessmentResponseDto.cs
-- [ ] T076 [US7] Create AiController in Infrastructure/Presentation/Controllers/AiController.cs with endpoints: POST /api/ai/extract-skills [Recruiter], POST /api/ai/analyze-resume [Recruiter], POST /api/ai/generate-cv [Candidate] — all with 503 fallback when AI unavailable per contracts/ai.md
-- [ ] T077 [US7] Add AutoMapper profile for AI DTOs in Core/Services/Mapping/AiMappingProfile.cs
-
-**Checkpoint**: User Story 7 fully functional — AI proxy endpoints working with resilience fallback
-
----
-
-## Phase 10: User Story 8 — Assessment Creation & Evaluation (Priority: P3)
-
-**Goal**: Recruiters create assessments (manual or AI-generated) with MCQ/TrueFalse/OpenEnded/Coding questions. Candidates start, submit within time window, and receive scores.
-
-**Independent Test**: Create an assessment with questions, have candidate start it, submit answers within time, verify scoring.
-
-### Implementation for User Story 8
-
-- [ ] T078 [P] [US8] Create Assessment entity in Core/Domain/Models/Assessment.cs and Question entity in Core/Domain/Models/Question.cs and CandidateAssessment entity in Core/Domain/Models/CandidateAssessment.cs with all fields per data-model.md
-- [ ] T079 [P] [US8] Create IAssessmentRepository interface in Core/Domain/Contracts/IAssessmentRepository.cs with GetByJobPostAsync, GetWithQuestionsAsync
-- [ ] T080 [P] [US8] Create AssessmentConfig.cs and related configs in Infrastructure/Persistence/Data/Configurations/AssessmentConfig.cs (Assessment, Question relationships, CandidateAssessment unique index on CandidateId+AssessmentId)
-- [ ] T081 [P] [US8] Create assessment DTOs in Core/Services.Abstractions/DTOs/Assessments/: CreateAssessmentDto.cs, AssessmentDetailDto.cs, QuestionDto.cs, StartAssessmentResponseDto.cs, SubmitAnswersDto.cs, AssessmentResultDto.cs, CandidateAssessmentResultDto.cs
-- [ ] T082 [P] [US8] Create IAssessmentService interface in Core/Services.Abstractions/IAssessmentService.cs with CreateAsync, GetByIdAsync, UpdateAsync, DeleteAsync, GetByJobPostAsync, StartAsync, SubmitAsync, GetResultsAsync
-- [ ] T083 [US8] Implement AssessmentRepository in Infrastructure/Persistence/Repositories/AssessmentRepository.cs with Include(Questions), candidate assessment queries
-- [ ] T084 [US8] Implement AssessmentService in Core/Services/AssessmentService.cs: create assessment with questions (auto-calculate totalScore), AI-generated assessment via IAiServiceClient, start assessment (record StartedAt, calculate deadlineAt), submit answers (reject if past deadline, auto-grade MCQ/TrueFalse, mark OpenEnded/Coding for manual review), hide correctAnswer from candidate responses per contracts/assessments.md
-- [ ] T085 [US8] Create AssessmentsController in Infrastructure/Presentation/Controllers/AssessmentsController.cs with endpoints: POST /api/assessments [Recruiter], GET /api/assessments/{id}, PUT /api/assessments/{id} [Recruiter], DELETE /api/assessments/{id} [Recruiter], GET /api/assessments/job/{jobPostId} [Recruiter], POST /api/assessments/{id}/start [Candidate], POST /api/assessments/{id}/submit [Candidate], GET /api/assessments/{id}/results [Recruiter] per contracts/assessments.md
-- [ ] T086 [US8] Create AutoMapper profile for Assessment DTOs in Core/Services/Mapping/AssessmentMappingProfile.cs
-- [ ] T087 [US8] Add AI generate-assessment endpoint to AiController: POST /api/ai/generate-assessment [Recruiter] per contracts/ai.md
-- [ ] T088 [US8] Add EF migration for Assessment, Question, CandidateAssessment entities: dotnet ef migrations add AddAssessments --project Infrastructure/Persistence --startup-project IES.api
-
-**Checkpoint**: User Story 8 fully functional — assessment CRUD, AI generation, candidate start/submit/score all working
+**Checkpoint**: Candidate profile now includes education, experience, and skill proficiency levels
 
 ---
 
-## Phase 11: User Story 9 — Interview Scheduling & Conduct (Priority: P3)
+## Phase 8: User Story 4 — Job Posting and Management (Priority: P1)
 
-**Goal**: Recruiters schedule AI voice and live video interviews. AI interviews generate questions, conduct via voice, score responses. Live interviews use SignalR + WebRTC signaling.
+**Goal**: Job CRUD with soft delete, RequiredLevel on skills, search with filters, similar jobs.
 
-**Independent Test**: Schedule both interview types, start AI interview and verify score/transcript, join live interview room and verify signaling works.
+- [ ] T084 [P] [US4] Create JobPost entity with all fields including DeletedAt/DeletedBy per data-model.md
+- [ ] T085 [P] [US4] Add RequiredLevel (SkillLevel?) to JobPostSkill junction entity
+- [ ] T086 [P] [US4] Create IJobPostRepository with GetPublishedJobsAsync, GetSimilarJobsAsync — exclude soft-deleted
+- [ ] T087 [P] [US4] Create JobPostConfig.cs with composite index (IsPublished, IsActive, ExpiryDate, DeletedAt), soft delete global query filter
+- [ ] T088 [P] [US4] Create job DTOs: JobListDto, JobDetailDto, CreateJobDto (skills with RequiredLevel), UpdateJobDto, PublishJobDto, JobFilterParams
+- [ ] T089 [P] [US4] Create IJobPostService with CreateAsync, SearchAsync, UpdateAsync, SoftDeleteAsync, PublishAsync, GetSimilarJobsAsync
+- [ ] T090 [US4] Implement JobPostRepository with soft delete filtering
+- [ ] T091 [US4] Implement JobPostService: create with RequiredLevel on skills, update (creator or admin, Standard edits own only), soft delete, search, similar jobs
+- [ ] T092 [US4] Create JobsController: POST, GET (public search), GET /{id}, PUT /{id}, DELETE /{id} (soft), PATCH /{id}/publish, GET /recruiter
+- [ ] T093 [US4] AutoMapper profile for Job DTOs
+- [ ] T094 [US4] Add EF migration: AddJobPost
 
-### Implementation for User Story 9
-
-- [ ] T089 [P] [US9] Create Interview entity in Core/Domain/Models/Interview.cs with all fields per data-model.md (JobApplicationId FK, InterviewType, Status, ScheduledAt, DurationMinutes, MeetingLink, AiQuestions, AiTranscript, Score, FeedbackNotes, CompletedAt)
-- [ ] T090 [P] [US9] Create IInterviewRepository interface in Core/Domain/Contracts/IInterviewRepository.cs with GetByApplicationAsync, GetUpcomingAsync, GetByUserAsync(pagination)
-- [ ] T091 [P] [US9] Create InterviewConfig.cs in Infrastructure/Persistence/Data/Configurations/InterviewConfig.cs with enum conversions, decimal precision for Score, JobApplication relationship
-- [ ] T092 [P] [US9] Create interview DTOs in Core/Services.Abstractions/DTOs/Interviews/: CreateInterviewDto.cs, InterviewDetailDto.cs, InterviewListDto.cs, StartAiInterviewResponseDto.cs, CompleteAiInterviewDto.cs, CompleteInterviewDto.cs, CancelInterviewDto.cs
-- [ ] T093 [P] [US9] Create IInterviewService interface in Core/Services.Abstractions/IInterviewService.cs with ScheduleAsync, GetByIdAsync, ListAsync, StartAiInterviewAsync, CompleteAiInterviewAsync, JoinLiveAsync, CompleteLiveAsync, CancelAsync
-- [ ] T094 [US9] Implement InterviewRepository in Infrastructure/Persistence/Repositories/InterviewRepository.cs
-- [ ] T095 [US9] Implement InterviewService in Core/Services/InterviewService.cs: schedule interview (validate application at Interview stage, generate meetingLink for live), start AI interview (validate time window 15min before, generate questions via IAiServiceClient), complete AI interview (score via IAiServiceClient, save transcript), join live (validate time window), complete live (save score + feedback), cancel (only if Scheduled) per contracts/interviews.md
-- [ ] T096 [US9] Create InterviewHub in Infrastructure/Presentation/Hubs/InterviewHub.cs with SignalR methods: JoinRoom, LeaveRoom, SendOffer, SendAnswer, SendIceCandidate and server→client: UserJoined, UserLeft, ReceiveOffer, ReceiveAnswer, ReceiveIceCandidate — using Groups scoped to interviewId per contracts/interviews.md
-- [ ] T097 [US9] Create InterviewsController in Infrastructure/Presentation/Controllers/InterviewsController.cs with endpoints: POST /api/interviews [Recruiter], GET /api/interviews/{id}, GET /api/interviews (paginated, filtered), POST /api/interviews/{id}/start-ai [Candidate], POST /api/interviews/{id}/complete-ai [Candidate], POST /api/interviews/{id}/join, PATCH /api/interviews/{id}/complete [Recruiter], PATCH /api/interviews/{id}/cancel [Recruiter] per contracts/interviews.md
-- [ ] T098 [US9] Add AI interview-questions and score-interview endpoints to AiController: POST /api/ai/interview-questions [Recruiter], POST /api/ai/score-interview per contracts/ai.md
-- [ ] T099 [US9] Create AutoMapper profile for Interview DTOs in Core/Services/Mapping/InterviewMappingProfile.cs
-- [ ] T100 [US9] Add EF migration for Interview entity: dotnet ef migrations add AddInterview --project Infrastructure/Persistence --startup-project IES.api
-
-**Checkpoint**: User Story 9 fully functional — interview scheduling, AI voice interview, live WebRTC signaling all working
+**Checkpoint**: US4 — job CRUD with soft delete, RequiredLevel, search, similar jobs all working
 
 ---
 
-## Phase 12: User Story 10 — Notifications & Candidate Acceptance (Priority: P3)
+## Phase 9: User Story 5 — Job Application and Tracking (Priority: P2)
 
-**Goal**: Email notifications for key pipeline events (reminders, status changes, acceptance/rejection). Real-time in-app notifications via SignalR NotificationHub.
+**Goal**: Apply for jobs (three-state MatchScore), withdraw while Pending, save/bookmark jobs.
 
-**Independent Test**: Trigger notification events, verify emails sent, verify in-app notifications delivered to connected users.
+- [ ] T095 [P] [US5] Create JobApplication entity with DeletedAt/DeletedBy and three-state MatchScore
+- [ ] T096 [P] [US5] Create IJobApplicationRepository with duplicate check, candidate/job queries
+- [ ] T097 [P] [US5] Create JobApplicationConfig.cs with unique (CandidateId, JobPostId), soft delete filter
+- [ ] T098 [P] [US5] Create application DTOs: ApplyJobDto, CandidateApplicationDto, ApplicationDetailDto
+- [ ] T099 [P] [US5] Create IJobApplicationService with ApplyAsync, WithdrawAsync, GetCandidateApplicationsAsync
+- [ ] T100 [US5] Implement AiServiceClient with resilience pipeline (retry, circuit breaker, timeout)
+- [ ] T101 [US5] Register AiServiceClient in Program.cs
+- [ ] T102 [US5] Implement JobApplicationRepository
+- [ ] T103 [US5] Implement JobApplicationService: validate resume + published job + no duplicate (including Withdrawn), create with Pending + MatchScore=null, async AI scoring, WithdrawAsync (only Pending, terminal)
+- [ ] T104 [US5] Add endpoints: POST /api/jobs/{jobId}/apply [Candidate], PATCH withdraw [Candidate], GET/POST saved-jobs on CandidatesController
+- [ ] T105 [US5] Add EF migration: AddJobApplication
 
-### Implementation for User Story 10
-
-- [ ] T101 [P] [US10] Create Notification entity in Core/Domain/Models/Notification.cs with all fields per data-model.md (Id, UserId FK, Type, Title, Message, TargetUrl, IsRead, CreatedAt)
-- [ ] T101b [P] [US10] Create INotificationRepository interface in Core/Domain/Contracts/INotificationRepository.cs with GetByUserAsync(userId, pagination, isRead?), GetUnreadCountAsync(userId), MarkReadAsync(id), MarkAllReadAsync(userId)
-- [ ] T101c [P] [US10] Create NotificationConfig.cs in Infrastructure/Persistence/Data/Configurations/NotificationConfig.cs with UserId FK to ApplicationUser, index on (UserId, IsRead), field constraints per data-model.md
-- [ ] T102 [P] [US10] Create IEmailService interface in Core/Services.Abstractions/IEmailService.cs with SendAsync(to, subject, body), SendInterviewReminderAsync, SendStatusChangeAsync, SendAcceptanceAsync
-- [ ] T103 [P] [US10] Create notification DTOs in Core/Services.Abstractions/DTOs/Notifications/: NotificationDto.cs (id, type, title, message, targetUrl, isRead, createdAt), UnreadCountDto.cs
-- [ ] T104 [P] [US10] Create INotificationService interface in Core/Services.Abstractions/INotificationService.cs with GetAsync(userId, pagination, isRead?), GetUnreadCountAsync, MarkReadAsync, MarkAllReadAsync, CreateAndPushAsync(userId, type, title, message)
-- [ ] T104b [US10] Implement NotificationRepository in Infrastructure/Persistence/Repositories/NotificationRepository.cs with filtered queries, mark-read updates; register in UnitOfWork
-- [ ] T105 [US10] Implement EmailService in Infrastructure/Persistence/Services/EmailService.cs using SmtpClient with settings from appsettings per research.md
-- [ ] T106 [US10] Create NotificationHub in Infrastructure/Presentation/Hubs/NotificationHub.cs with OnConnectedAsync (join user group), server→client: ReceiveNotification, UpdateUnreadCount per contracts/notifications.md
-- [ ] T107 [US10] Implement NotificationService in Core/Services/NotificationService.cs: store notification via INotificationRepository + IUnitOfWork, push via IHubContext<NotificationHub> to user group, send email for key events per contracts/notifications.md notification trigger matrix
-- [ ] T108 [US10] Integrate notification triggers into existing services: JobApplicationService (application submitted → recruiter, status changed → candidate, accepted/rejected → candidate), InterviewService (interview scheduled → candidate+recruiter), AssessmentService (assessment stage → candidate)
-- [ ] T109 [US10] Create NotificationsController in Infrastructure/Presentation/Controllers/NotificationsController.cs with endpoints: GET /api/notifications [Authorize] (paginated, filterable by isRead), GET /api/notifications/unread-count [Authorize], PATCH /api/notifications/{id}/read [Authorize], PATCH /api/notifications/read-all [Authorize] per contracts/notifications.md
-- [ ] T110 [US10] Add EF migration for Notification entity: dotnet ef migrations add AddNotification --project Infrastructure/Persistence --startup-project IES.api
-
-**Checkpoint**: User Story 10 fully functional — email notifications, real-time in-app notifications, acceptance/rejection flow all working
+**Checkpoint**: US5 — applications with three-state scoring, withdraw, saved jobs all working
 
 ---
 
-## Phase 13: User Story 11 — Dashboards & Analytics (Priority: P3)
+## Phase 10: User Story 6 — Applicant Management and Screening (Priority: P2)
 
-**Goal**: Candidate dashboard (applications count, saved jobs, upcoming interviews, recent activity, AI-suggested jobs). Company dashboard (total applicants, active jobs, hire rate, trends, action items).
+**Goal**: Recruiter applicant management with pipeline, rating, CSV export.
 
-**Independent Test**: Call dashboard endpoints, verify aggregated metrics match underlying data.
+- [ ] T106 [P] [US6] Create applicant DTOs: ApplicantDto, ApplicantFilterParams, StatusChangeDto, RatingDto, ApplicantCsvExportDto
+- [ ] T107 [P] [US6] Add methods to IJobApplicationService: GetApplicantsAsync, UpdateStatusAsync, SetRatingAsync, ExportCsvAsync
+- [ ] T108 [US6] Implement pipeline validation: strict sequential + Withdrawn terminal state
+- [ ] T109 [US6] Implement CSV export using CsvHelper
+- [ ] T110 [US6] Add endpoints: GET applicants, PATCH status, PATCH rating, GET export — all on JobsController
 
-### Implementation for User Story 11
-
-- [ ] T111 [P] [US11] Create dashboard DTOs in Core/Services.Abstractions/DTOs/Dashboard/: CandidateDashboardDto.cs (applicationsCount, savedJobsCount, upcomingInterviews, recentActivity, aiSuggestedJobs), CompanyDashboardDto.cs (totalApplicants, activeJobs, hireRate, applicationTrends, recentJobPosts, actionRequired)
-- [ ] T112 [P] [US11] Create IDashboardService interface in Core/Services.Abstractions/IDashboardService.cs with GetCandidateDashboardAsync, GetCompanyDashboardAsync
-- [ ] T113 [US11] Implement DashboardService in Core/Services/DashboardService.cs: candidate dashboard aggregates applications count, saved jobs count, upcoming interviews, recent activity, AI-suggested jobs (via IAiServiceClient, gracefully omit if unavailable); company dashboard aggregates totalApplicants, activeJobs, hireRate (accepted/total), applicationTrends (weekly counts), recentJobPosts, actionRequired items per contracts/candidates.md and contracts/companies.md
-- [ ] T114 [US11] Add GET /api/candidates/dashboard [Candidate] endpoint to CandidatesController per contracts/candidates.md. Add GET /api/companies/dashboard [Recruiter] endpoint to CompaniesController per contracts/companies.md
-- [ ] T115 [US11] Create AutoMapper profile for Dashboard DTOs in Core/Services/Mapping/DashboardMappingProfile.cs
-
-**Checkpoint**: User Story 11 fully functional — both dashboards returning accurate aggregated data
+**Checkpoint**: US6 — applicant listing, pipeline, rating, CSV export all working
 
 ---
 
-## Phase 14: Polish & Cross-Cutting Concerns
+## Phase 11: User Story 7 — AI Endpoints (Priority: P2)
 
-**Purpose**: Improvements that affect multiple user stories
+**Goal**: AI proxy endpoints with graceful degradation.
 
-- [ ] T115b [US5] Create AiScoringRetryService as BackgroundService in Infrastructure/Persistence/Services/AiScoringRetryService.cs: periodic IHostedService that queries JobApplications with MatchScore = null, retries AI scoring via IAiServiceClient, updates score on success, logs and skips on continued failure. Run every 5 minutes. Register in Program.cs with AddHostedService<AiScoringRetryService>() per FR-034
-- [ ] T116 [P] Configure Kestrel request size limits in IES.api/Program.cs: MaxRequestBodySize=11_000_000, FormOptions.MultipartBodyLengthLimit=11_000_000 for file uploads per research.md
-- [ ] T117 [P] Add CORS configuration in IES.api/Program.cs for Angular frontend (allow localhost:4200 in development) with appropriate headers and methods
-- [ ] T118 [P] Add Swagger/OpenAPI documentation annotations to all controllers using XML comments and ProducesResponseType attributes
-- [ ] T119 Register all remaining DI services in IES.api/Program.cs: verify all services, repositories, IUnitOfWork, IAiServiceClient, IFileStorageService, IEmailService, INotificationService, AutoMapper profiles are registered
-- [ ] T120 Verify strict pipeline enforcement end-to-end: test full hiring flow (register → apply → score → assess → interview → accept) per SC-012
-- [ ] T121 Run quickstart.md validation: follow all steps in quickstart.md to verify fresh setup works from clone to running API
+- [ ] T111 [P] [US7] Create AI DTOs: ExtractSkills, AnalyzeResume, GenerateAssessment request/response
+- [ ] T112 [US7] Create AiController: POST extract-skills, POST analyze-resume, POST generate-cv — 503 fallback
+- [ ] T113 [US7] AutoMapper profile for AI DTOs
+
+**Checkpoint**: US7 — AI proxy endpoints working with resilience
 
 ---
 
-## Dependencies & Execution Order
+## Phase 12: User Story 8 — Assessments (Priority: P3)
+
+**Goal**: Assessment CRUD with AI generation, candidate start/submit/score.
+
+- [ ] T114 [P] [US8] Create Assessment, Question, CandidateAssessment entities
+- [ ] T115 [P] [US8] Create IAssessmentRepository
+- [ ] T116 [P] [US8] Create AssessmentConfig.cs (unique CandidateId+AssessmentId)
+- [ ] T117 [P] [US8] Create assessment DTOs
+- [ ] T118 [P] [US8] Create IAssessmentService interface
+- [ ] T119 [US8] Implement AssessmentRepository
+- [ ] T120 [US8] Implement AssessmentService: create, AI generate, start, submit (time validation, auto-grade)
+- [ ] T121 [US8] Create AssessmentsController with all endpoints
+- [ ] T122 [US8] Add POST /api/ai/generate-assessment to AiController
+- [ ] T123 [US8] AutoMapper for Assessment DTOs
+- [ ] T124 [US8] Add EF migration: AddAssessments
+
+**Checkpoint**: US8 — assessments fully functional
+
+---
+
+## Phase 13: User Story 9 — Interviews: Text-Based AI + Live (Priority: P3)
+
+**Goal**: Text-based AI interviews (written Q&A, AI scores text) + live interviews via third-party WebRTC provider.
+
+- [ ] T125 [P] [US9] Create Interview entity with AiAnswers (not AiTranscript), MeetingLink for WebRTC
+- [ ] T126 [P] [US9] Create IInterviewRepository
+- [ ] T127 [P] [US9] Create InterviewConfig.cs
+- [ ] T128 [P] [US9] Create interview DTOs: CreateInterviewDto, InterviewDetailDto, AiInterviewQuestionsDto, SubmitAiInterviewDto (written answers), CompleteInterviewDto
+- [ ] T129 [P] [US9] Create IInterviewService with ScheduleAsync, GetAiQuestionsAsync, SubmitAiAnswersAsync, CreateLiveRoomAsync, CancelAsync
+- [ ] T130 [US9] Implement InterviewRepository
+- [ ] T131 [US9] Implement InterviewService: schedule (validate Interview stage), AI text interview (generate questions, candidate submits written answers, AI scores), live (create room via third-party, return link), cancel
+- [ ] T132 [US9] Create InterviewsController: POST, GET, GET list, POST ai-questions, POST submit-ai, POST join, PATCH complete, PATCH cancel
+- [ ] T133 [US9] Add AI interview endpoints to AiController
+- [ ] T134 [US9] AutoMapper for Interview DTOs
+- [ ] T135 [US9] Add EF migration: AddInterviews
+
+**Checkpoint**: US9 — text-based AI interviews + live WebRTC interviews all working
+
+---
+
+## Phase 14: User Story 10 — Notifications (Priority: P3)
+
+**Goal**: Email (console dev, Mailtrap demo, SendGrid prod) + real-time in-app notifications via SignalR.
+
+- [ ] T136 [P] [US10] Create Notification entity
+- [ ] T137 [P] [US10] Create INotificationRepository
+- [ ] T138 [P] [US10] Create NotificationConfig.cs
+- [ ] T139 [P] [US10] Create IEmailService interface
+- [ ] T140 [P] [US10] Create notification DTOs: NotificationDto, UnreadCountDto
+- [ ] T141 [P] [US10] Create INotificationService interface
+- [ ] T142 [US10] Implement NotificationRepository
+- [ ] T143 [US10] Implement EmailService (console logging dev, Mailtrap demo, SendGrid prod)
+- [ ] T144 [US10] Create NotificationHub (OnConnectedAsync, ReceiveNotification, UpdateUnreadCount)
+- [ ] T145 [US10] Implement NotificationService: store + push via IHubContext + email
+- [ ] T146 [US10] Integrate triggers into JobApplicationService, InterviewService, AssessmentService
+- [ ] T147 [US10] Create NotificationsController: GET, GET unread-count, PATCH mark-read, PATCH read-all
+- [ ] T148 [US10] Add EF migration: AddNotifications
+
+**Checkpoint**: US10 — email + real-time notifications all working
+
+---
+
+## Phase 15: User Story 11 — Dashboards (Priority: P3)
+
+**Goal**: Minimal dashboards — aggregate numbers only, no new complex endpoints.
+
+- [ ] T149 [P] [US11] Create dashboard DTOs: CandidateDashboardDto, CompanyDashboardDto
+- [ ] T150 [P] [US11] Create IDashboardService interface
+- [ ] T151 [US11] Implement DashboardService: aggregate counts (no AI dependency)
+- [ ] T152 [US11] Add GET /api/candidates/dashboard and GET /api/companies/dashboard
+- [ ] T153 [US11] AutoMapper for Dashboard DTOs
+
+**Checkpoint**: US11 — minimal dashboards returning aggregate data
+
+---
+
+## Phase 16: Tests + Polish
+
+**Purpose**: Unit tests, integration tests, background services, final configuration.
+
+### Tests
+
+- [ ] T154 [P] Create IES.UnitTests project (xUnit + Moq)
+- [ ] T155 [P] Create IES.IntegrationTests project (xUnit + WebApplicationFactory)
+- [ ] T156 Unit tests: AuthService (register 3 paths, login, logout)
+- [ ] T157 Unit tests: CandidateService (profile, skills with levels, education, experience)
+- [ ] T158 Unit tests: JobApplicationService (apply, withdraw, pipeline, duplicates)
+- [ ] T159 Unit tests: InviteCodeService (generate, validate, revoke, max uses, expiry)
+- [ ] T160 Unit tests: CompanyService (update, transfer admin)
+- [ ] T161 Integration tests: Auth endpoints via WebApplicationFactory
+
+### Background Services
+
+- [ ] T162 JobExpiryBackgroundService (IHostedService): every 24h, set IsActive=false for expired jobs
+- [ ] T163 AiScoringRetryService (IHostedService): every 5min, retry AI scoring for MatchScore=null
+
+### Polish
+
+- [ ] T164 Configure Kestrel request size limits (11MB)
+- [ ] T165 CORS configuration for Angular frontend
+- [ ] T166 Swagger/OpenAPI annotations on all controllers
+- [ ] T167 Verify complete DI registration in Program.cs
+- [ ] T168 End-to-end flow: register candidate + company + invite recruiter + post job + apply + score + assess + text AI interview + accept + notifications
+- [ ] T169 Run quickstart.md validation
+
+---
+
+## Dependencies and Execution Order
 
 ### Phase Dependencies
 
-- **Setup (Phase 1)**: No dependencies — can start immediately
-- **Foundational (Phase 2)**: Depends on Setup completion — **BLOCKS all user stories**
-- **US1 Auth (Phase 3)**: Depends on Foundational — **BLOCKS US2-US11** (all stories need auth)
-- **US2 Candidate (Phase 4)**: Depends on US1 (needs authenticated candidate)
-- **US3 Company (Phase 5)**: Depends on US1 (needs authenticated recruiter)
-- **US4 Job (Phase 6)**: Depends on US3 (jobs belong to companies) and US2 (skills shared)
-- **US5 Application (Phase 7)**: Depends on US2 (resume required) and US4 (jobs to apply to)
-- **US6 Screening (Phase 8)**: Depends on US5 (applications to manage)
-- **US7 AI (Phase 9)**: Depends on US5 (AI client already built for scoring in US5)
-- **US8 Assessment (Phase 10)**: Depends on US5 (application pipeline)
-- **US9 Interview (Phase 11)**: Depends on US5 (application pipeline)
-- **US10 Notifications (Phase 12)**: Depends on US5, US8, US9 (triggers from pipeline events)
-- **US11 Dashboards (Phase 13)**: Depends on US2, US4, US5 (aggregates from all entities)
-- **Polish (Phase 14)**: Depends on all desired user stories being complete
+- **Phase 1-4**: ✅ Complete (Setup + Foundation + Auth + Candidate)
+- **Phase 5 Auth Retrofit**: Depends on Phase 4 — **BLOCKS all new user stories**
+- **Phase 6 US3 Company**: Depends on Phase 5
+- **Phase 7 US2 Extension**: Depends on Phase 5. **Can parallel with Phase 6**
+- **Phase 8 US4 Job**: Depends on Phase 6 + Phase 7
+- **Phase 9 US5 Application**: Depends on Phase 4 (resume) + Phase 8 (jobs)
+- **Phase 10 US6 Screening**: Depends on Phase 9
+- **Phase 11 US7 AI**: Depends on Phase 9
+- **Phase 12 US8 Assessments**: Depends on Phase 9
+- **Phase 13 US9 Interviews**: Depends on Phase 9
+- **Phase 14 US10 Notifications**: Depends on Phase 9 + Phase 12 + Phase 13
+- **Phase 15 US11 Dashboards**: Depends on Phase 9
+- **Phase 16 Tests + Polish**: Depends on all MVP phases
 
-### User Story Dependencies
+### Dependency Graph
 
 ```text
-Phase 1: Setup
-    ↓
-Phase 2: Foundational
-    ↓
-Phase 3: US1 (Auth) ← BLOCKS ALL
-    ↓
-    ├── Phase 4: US2 (Candidate)
-    │       ↓
-    └── Phase 5: US3 (Company)
-            ↓
-        Phase 6: US4 (Job) ← depends on US2 + US3
-            ↓
-        Phase 7: US5 (Application) ← depends on US2 + US4
-            ↓
-            ├── Phase 8: US6 (Screening)
-            ├── Phase 9: US7 (AI Endpoints)
-            ├── Phase 10: US8 (Assessments)
-            ├── Phase 11: US9 (Interviews)
-            │       ↓
-            └── Phase 12: US10 (Notifications) ← depends on US5+US8+US9
-                    ↓
-                Phase 13: US11 (Dashboards)
-                    ↓
-                Phase 14: Polish
+Phase 1-4: ✅ Complete
+    |
+Phase 5: Auth Retrofit + Domain Updates
+    |
+    +-- Phase 6: US3 Company
+    |       |
+    +-- Phase 7: US2 Extension (can parallel with Phase 6)
+            |
+        Phase 8: US4 Jobs
+            |
+        Phase 9: US5 Applications
+            |
+            +-- Phase 10: US6 Screening
+            +-- Phase 11: US7 AI Endpoints
+            +-- Phase 12: US8 Assessments
+            +-- Phase 13: US9 Interviews
+            |       |
+            +-- Phase 15: US11 Dashboards
+            |
+            Phase 14: US10 Notifications (needs US8+US9)
+                |
+            Phase 16: Tests + Polish
 ```
-
-### Within Each User Story
-
-- DTOs and interfaces (marked [P]) can be created in parallel
-- Entity configs can parallel with DTOs
-- Repository implementations before service implementations
-- Service implementations before controller implementations
-- Controllers last (depend on services)
-- Migrations after all entities for that story are defined
-
-### Parallel Opportunities
-
-- **Phase 2**: T004, T005, T006, T009, T010, T011, T012, T013, T015, T016, T019 can all run in parallel
-- **Phase 4 (US2)**: T028-T034 (entities, DTOs, interfaces) can all run in parallel
-- **Phase 5 (US3)**: T042-T044 can run in parallel
-- **Phase 6 (US4)**: T049-T053 can run in parallel
-- **Phase 7 (US5)**: T059-T063 can run in parallel
-- **Phase 8 (US6)**: T070-T071 can run in parallel
-- **Phase 10 (US8)**: T078-T082 can run in parallel
-- **Phase 11 (US9)**: T089-T093 can run in parallel
-- **Phase 12 (US10)**: T101-T104 can run in parallel
-- **Phase 14**: T116-T118 can run in parallel
-
----
-
-## Parallel Example: Phase 2 (Foundational)
-
-```bash
-# Batch 1 — All parallel (different files, no dependencies):
-Task T004: Create all domain enums
-Task T005: Create domain exceptions
-Task T006: Create ApplicationUser base entity
-Task T009: Create Company entity
-Task T010: Create Skill entity
-Task T011: Create junction entities
-Task T012: Create IRepositoryBase<T>
-Task T013: Create IUnitOfWork
-Task T015: Create EF configs (ApplicationUser, Company)
-Task T016: Create SkillConfig
-Task T019: Create GlobalExceptionHandler
-
-# Batch 2 — Depends on T006:
-Task T007: Create CandidateUser (inherits ApplicationUser)
-Task T008: Create Recruiter (inherits ApplicationUser)
-
-# Batch 3 — Depends on all entities + interfaces:
-Task T014: Create AppDbContext
-Task T017: Create RepositoryBase<T>
-Task T018: Create UnitOfWork
-
-# Batch 4 — Depends on everything above:
-Task T020: Configure Program.cs
-Task T021: Configure appsettings
-
-# Batch 5 — Depends on DbContext:
-Task T022: Create initial migration
-```
-
----
-
-## Implementation Strategy
-
-### MVP First (User Stories 1–4)
-
-1. Complete Phase 1: Setup
-2. Complete Phase 2: Foundational (CRITICAL — blocks all stories)
-3. Complete Phase 3: US1 — Auth
-4. Complete Phase 4: US2 — Candidate Profiles + Phase 5: US3 — Companies (can parallel)
-5. Complete Phase 6: US4 — Jobs
-6. **STOP and VALIDATE**: Test full flow: register → login → create company → post job → search → verify
-7. Deploy/demo if ready — this is your core MVP
-
-### Incremental Delivery
-
-1. Setup + Foundational → Foundation ready
-2. Add US1 (Auth) → Test independently → First working endpoint
-3. Add US2 (Candidate) + US3 (Company) → Test independently → Profile + Company management
-4. Add US4 (Jobs) → Test independently → **MVP Complete!**
-5. Add US5 (Applications) → Test independently → Applications + AI scoring
-6. Add US6 (Screening) + US7 (AI) → Test independently → Full recruiter workflow
-7. Add US8 (Assessments) + US9 (Interviews) → Test independently → Evaluation pipeline
-8. Add US10 (Notifications) + US11 (Dashboards) → Test independently → Polish layer
-9. Each story adds value without breaking previous stories
 
 ---
 
 ## Notes
 
-- [P] tasks = different files, no dependencies
-- [Story] label maps task to specific user story for traceability
-- Each user story should be independently completable and testable
+- [P] tasks = different files, no dependencies — can run in parallel
+- [Story] label maps task to specific user story
+- Phases 1-4 (T001-T041) are ✅ COMPLETE
+- Phase 5 retrofits existing code with 25 design decisions — **do this first**
+- MVP = Phases 1-15 (11 user stories). Phase 16 = tests + polish
 - Commit after each task or logical group
-- Stop at any checkpoint to validate story independently
-- No test tasks generated (not requested in spec) — add tests separately if needed
-- Total: 125 tasks across 14 phases covering 11 user stories
+- Stop at any checkpoint to validate independently
+- Total: ~169 tasks across 16 phases covering 11 user stories + tests

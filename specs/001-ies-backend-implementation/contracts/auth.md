@@ -7,7 +7,38 @@
 
 ## POST /api/auth/register
 
-Register a new user (candidate or recruiter).
+Register a new candidate.
+
+**Request Body**:
+```json
+{
+  "firstName": "string (required, max 100)",
+  "lastName": "string (required, max 100)",
+  "email": "string (required, valid email)",
+  "password": "string (required, min 8, uppercase+lowercase+digit+special)",
+  "phoneNumber": "string? (max 20)",
+  "gender": "int (required, 0=Male, 1=Female)",
+  "dateOfBirth": "string? (ISO 8601 date)"
+}
+```
+
+**Responses**:
+| Status | Body | Condition |
+|--------|------|-----------|
+| 201 | `{ token, expiresAt, userId, email, role: "Candidate" }` | Candidate created |
+| 400 | `{ statusCode, message, details }` | Validation error |
+| 409 | `{ statusCode, message }` | Email already registered |
+
+**Notes**:
+- Creates a CandidateUser only
+- Returns JWT token immediately (auto-login on registration)
+- Password is never returned in any response
+
+---
+
+## POST /api/auth/register/company
+
+Register a new recruiter with a new company. The recruiter becomes Admin automatically.
 
 **Request Body**:
 ```json
@@ -19,22 +50,56 @@ Register a new user (candidate or recruiter).
   "phoneNumber": "string? (max 20)",
   "gender": "int (required, 0=Male, 1=Female)",
   "dateOfBirth": "string? (ISO 8601 date)",
-  "userType": "string (required, 'Candidate' or 'Recruiter')",
-  "companyId": "int? (required if userType=Recruiter)"
+  "companyName": "string (required, max 200)",
+  "taxNumber": "string (required, unique, max 50)",
+  "industry": "string? (max 100)",
+  "website": "string? (max 500)"
 }
 ```
 
 **Responses**:
 | Status | Body | Condition |
 |--------|------|-----------|
-| 201 | `{ userId, email, userType }` | Account created |
-| 400 | `{ statusCode, message, details }` | Validation error / invalid companyId |
+| 201 | `{ token, expiresAt, userId, email, role: "Recruiter", companyId }` | Company + Admin Recruiter created |
+| 400 | `{ statusCode, message, details }` | Validation error |
+| 409 | `{ statusCode, message }` | Email or TaxNumber already exists |
+
+**Notes**:
+- Creates both Company and Recruiter in a single transaction
+- Recruiter gets Admin role automatically (first recruiter = Admin)
+- TaxNumber must be unique across all companies
+
+---
+
+## POST /api/auth/register/recruiter
+
+Register a new recruiter using a company invite code. Gets Standard role.
+
+**Request Body**:
+```json
+{
+  "firstName": "string (required, max 100)",
+  "lastName": "string (required, max 100)",
+  "email": "string (required, valid email)",
+  "password": "string (required, min 8, uppercase+lowercase+digit+special)",
+  "phoneNumber": "string? (max 20)",
+  "gender": "int (required, 0=Male, 1=Female)",
+  "dateOfBirth": "string? (ISO 8601 date)",
+  "inviteCode": "string (required, 6-char alphanumeric)"
+}
+```
+
+**Responses**:
+| Status | Body | Condition |
+|--------|------|-----------|
+| 201 | `{ token, expiresAt, userId, email, role: "Recruiter", companyId }` | Standard Recruiter created |
+| 400 | `{ statusCode, message }` | Invalid, expired, or fully-used invite code |
 | 409 | `{ statusCode, message }` | Email already registered |
 
 **Notes**:
-- Recruiter must provide a valid `companyId` for an existing company
-- First recruiter for a company is assigned `Admin` role; subsequent recruiters get `Standard`
-- Password is never returned in any response
+- Validates invite code: must exist, IsActive=true, CurrentUses < MaxUses, ExpiresAt > now
+- Increments CurrentUses on the invite code after successful registration
+- Recruiter gets Standard role (not Admin)
 
 ---
 
@@ -58,8 +123,8 @@ Authenticate a user and return a JWT token.
 
 **Notes**:
 - Token is JWT with 24h expiry
-- `role` is one of: Candidate, Recruiter, AdminRecruiter
-- Error message must NOT reveal whether email or password is wrong
+- `role` is one of: Candidate, Recruiter (includes both Admin and Standard)
+- For recruiters, the response also includes `companyId` and `recruiterRole` (Admin/Standard)
 
 ---
 

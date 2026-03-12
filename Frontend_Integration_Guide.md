@@ -1,7 +1,7 @@
 # 🚀 Intelligent Employment System (IES) — Frontend Integration Guide
 
 > **Version**: 2.0 | **Last Updated**: 2026-03-05  
-> **Backend Stack**: .NET 10, ASP.NET Core, SQL Server, SignalR, JWT  
+> **Backend Stack**: .NET 10, ASP.NET Core, SQL Server, JWT  
 > **Target Frontend**: Angular / React / Vue (TypeScript)
 
 This document provides **everything** the frontend team needs to integrate with the IES backend — endpoints, request/response bodies, enums, business rules, real-time features, and code examples.
@@ -31,20 +31,19 @@ IES is an AI-powered recruitment platform connecting **Candidates** and **Recrui
 
 - AI matching (Resume vs. Job Description)
 - AI-generated assessments & scoring
-- AI voice interviews with transcript analysis
-- Real-time live video interviews (WebRTC + SignalR)
-- Real-time notifications
+- AI text-based interviews with written Q&A and scoring
+- Live video interviews via third-party WebRTC service (Daily.co / 100ms)
+- Real-time notifications (SignalR)
 
 ### User Roles
 
 | Role | Description | Capabilities |
 |------|-------------|-------------|
 | **Candidate** | Job seeker | Build profile, upload resumes, apply to jobs, take assessments, do interviews |
-| **Recruiter (Admin)** | First recruiter registered for a company — auto-assigned | Full company control: edit company, manage recruiters, post jobs, manage applicants |
-| **Recruiter (Standard)** | Subsequent recruiters | Post jobs, manage applicants, schedule interviews |
-| **Recruiter (Junior)** | Limited recruiter | View applicants and ratings only — **cannot** post jobs |
+| **Recruiter (Admin)** | First recruiter who creates a company — auto-assigned | Full company control: edit company, manage invite codes, transfer admin, post jobs, manage applicants |
+| **Recruiter (Standard)** | Joins via invite code | Post jobs, manage applicants, schedule interviews |
 
-> ⚠️ The first recruiter to register for a company automatically gets `Admin` role. All subsequent recruiters get `Standard` by default.
+> ⚠️ There is no Super Admin. The first recruiter who creates a company automatically gets `Admin` role. Additional recruiters join via invite codes and get `Standard` role.
 
 ---
 
@@ -97,14 +96,13 @@ Use the **Authorize** button (🔒) to enter your JWT token and test endpoints d
   "expiresAt": "2026-03-06T14:30:00Z",
   "userId": "a1b2c3d4-...",
   "email": "user@example.com",
-  "role": "Candidate",
-  "userType": "Candidate"
+  "role": "Candidate"
 }
 ```
 
-> **`role`** values: `"Candidate"` | `"Recruiter"` | `"AdminRecruiter"`  
-> **`userType`** values: `"Candidate"` | `"Recruiter"`  
-> The difference: `role` includes the recruiter's permission level, `userType` is the base type.
+> **`role`** values: `"Candidate"` | `"Recruiter"`  
+> For recruiters, the response also includes `companyId` (int) and `recruiterRole` (`"Admin"` | `"Standard"`).  
+> There is no separate `userType` — `role` is sufficient.
 
 ### Frontend Auth Flow
 
@@ -205,7 +203,8 @@ interface PaginationParams {
 ### Auth DTOs
 
 ```typescript
-interface RegisterRequest {
+/** Register as a Candidate */
+interface RegisterCandidateRequest {
   firstName: string;
   lastName: string;
   email: string;
@@ -213,14 +212,43 @@ interface RegisterRequest {
   phoneNumber?: string;
   gender: Gender;           // 0=Male, 1=Female
   dateOfBirth?: string;     // ISO 8601
-  userType: 'Candidate' | 'Recruiter';
-  companyId?: number;       // REQUIRED if userType = "Recruiter"
 }
 
+/** Register as a Recruiter creating a new Company */
+interface RegisterCompanyRequest {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  phoneNumber?: string;
+  gender: Gender;
+  dateOfBirth?: string;
+  companyName: string;      // Max 200
+  taxNumber: string;        // Unique, max 50
+  industry?: string;        // Max 100
+  website?: string;         // Max 500
+}
+
+/** Register as a Recruiter joining existing Company via invite code */
+interface RegisterRecruiterRequest {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  phoneNumber?: string;
+  gender: Gender;
+  dateOfBirth?: string;
+  inviteCode: string;       // 6-char alphanumeric
+}
+
+/** All 3 register endpoints return JWT token (auto-login) */
 interface RegisterResponse {
+  token: string;
+  expiresAt: string;
   userId: string;
   email: string;
-  userType: string;
+  role: 'Candidate' | 'Recruiter';
+  companyId?: number;       // Only for recruiter registrations
 }
 
 interface LoginRequest {
@@ -233,8 +261,9 @@ interface LoginResponse {
   expiresAt: string;        // ISO 8601
   userId: string;
   email: string;
-  role: 'Candidate' | 'Recruiter' | 'AdminRecruiter';
-  userType: 'Candidate' | 'Recruiter';
+  role: 'Candidate' | 'Recruiter';
+  companyId?: number;       // Only for recruiters
+  recruiterRole?: 'Admin' | 'Standard'; // Only for recruiters
 }
 
 interface ForgotPasswordRequest {
@@ -274,8 +303,34 @@ interface CandidateProfileDto {
   address?: string;
   city?: string;
   country?: string;
-  skills: SkillDto[];
+  skills: CandidateSkillDto[];
+  education: EducationDto[];
+  experience: ExperienceDto[];
   resumes: ResumeSummaryDto[];
+}
+
+interface CandidateSkillDto {
+  id: number;
+  name: string;
+  category?: SkillCategory;
+  level: SkillLevel;         // 1=Beginner, 2=Intermediate, 3=Expert
+}
+
+interface EducationDto {
+  id: number;
+  degree: string;
+  fieldOfStudy: string;
+  institution: string;
+  graduationYear?: number;
+}
+
+interface ExperienceDto {
+  id: number;
+  jobTitle: string;
+  company: string;
+  description?: string;      // Max 500
+  startDate: string;         // ISO 8601
+  endDate?: string;          // null = current position
 }
 
 interface UpdateCandidateProfileRequest {
@@ -296,7 +351,7 @@ interface UpdateCandidateProfileRequest {
 }
 
 interface UpdateSkillsRequest {
-  skillIds: number[];
+  skills: { name: string; level: SkillLevel }[];  // Replace-all semantics
 }
 
 interface ResumeSummaryDto {
@@ -360,19 +415,12 @@ interface CompanyDetailDto {
   phoneNumber?: string;
   description?: string;
   logoPath?: string;
-  isVerified: boolean;
   jobCount: number;
   createdAt: string;
 }
 
-interface CreateCompanyRequest {
-  name: string;
-  industry?: string;
-  website?: string;
-  taxNumber: string;        // Immutable after creation
-  phoneNumber?: string;
-  description?: string;
-}
+// NOTE: Companies are created via POST /api/auth/register/company (see Auth)
+// There is no separate CreateCompanyRequest — company data is part of RegisterCompanyRequest
 
 interface UpdateCompanyRequest {
   name?: string;
@@ -391,9 +439,23 @@ interface RecruiterListDto {
   recruiterRole: UserRole;
 }
 
-interface AddRecruiterRequest {
-  userId: string;
-  recruiterRole?: UserRole;  // Default: Standard
+interface InviteCodeDto {
+  id: number;
+  code: string;             // 6-char alphanumeric
+  maxUses: number;
+  currentUses: number;
+  expiresAt: string;        // ISO 8601
+  isActive: boolean;
+  createdAt: string;
+}
+
+interface CreateInviteCodeRequest {
+  maxUses: number;           // 1–100
+  expiresAt: string;         // ISO 8601, must be future
+}
+
+interface TransferAdminRequest {
+  newAdminUserId: string;    // Must be a Standard Recruiter in same company
 }
 
 interface CompanyDashboardDto {
@@ -420,7 +482,7 @@ interface JobListDto {
   salaryMin?: number;
   salaryMax?: number;
   currency?: string;
-  skills: { id: number; name: string }[];
+  skills: { id: number; name: string; requiredLevel: SkillLevel }[];
   applicantsCount: number;
   createdAt: string;
   expiryDate?: string;
@@ -442,7 +504,7 @@ interface JobDetailDto {
   isPublished: boolean;
   isActive: boolean;
   company: { id: number; name: string; industry?: string; logoPath?: string };
-  skills: { id: number; name: string; isRequired: boolean }[];
+  skills: { id: number; name: string; requiredLevel: SkillLevel; isRequired: boolean }[];
   applicantsCount: number;
   similarJobs: JobListDto[];
   createdAt: string;
@@ -461,7 +523,7 @@ interface CreateJobRequest {
   currency?: string;
   expiryDate?: string;
   isPublished: boolean;
-  skillIds: number[];
+  skills: { name: string; requiredLevel: SkillLevel }[];
 }
 
 interface UpdateJobRequest {
@@ -475,7 +537,7 @@ interface UpdateJobRequest {
   salaryMax?: number;
   currency?: string;
   expiryDate?: string;
-  skillIds?: number[];
+  skills?: { name: string; requiredLevel: SkillLevel }[];
 }
 
 /** Job search/filter query parameters */
@@ -644,7 +706,7 @@ interface InterviewDetailDto {
   meetingLink?: string;       // Auto-generated for Live interviews
   score?: number;             // 0–100
   feedbackNotes?: string;
-  aiTranscript?: string;
+  aiAnswers?: string;       // JSON of Q&A pairs (AI interviews only)
   completedAt?: string;
   createdAt: string;
 }
@@ -673,17 +735,17 @@ interface InterviewSearchParams extends PaginationParams {
   upcoming?: boolean;
 }
 
-interface StartAiInterviewResponse {
+interface AiInterviewQuestionsResponse {
   interviewId: number;
-  questions: { text: string; expectedTopics: string[] }[];
+  questions: { id: number; text: string }[];
   status: 'InProgress';
 }
 
-interface CompleteAiInterviewRequest {
-  transcript: string;
+interface SubmitAiInterviewRequest {
+  answers: { questionId: number; answer: string }[];
 }
 
-interface CompleteAiInterviewResponse {
+interface SubmitAiInterviewResponse {
   interviewId: number;
   score: number;
   feedback: string;
@@ -692,9 +754,7 @@ interface CompleteAiInterviewResponse {
 
 interface JoinLiveInterviewResponse {
   interviewId: number;
-  meetingLink: string;
-  signalingHubUrl: string;
-  roomId: string;
+  meetingLink: string;       // Third-party WebRTC service URL
 }
 
 interface CompleteLiveInterviewRequest {
@@ -810,7 +870,6 @@ export enum Gender {
 export enum UserRole {
   Admin = 0,
   Standard = 1,
-  Junior = 2,
 }
 
 export enum ApplicationStatus {
@@ -820,6 +879,7 @@ export enum ApplicationStatus {
   Interview = 3,
   Accepted = 4,
   Rejected = 5,
+  Withdrawn = 6,
 }
 
 export enum InterviewType {
@@ -878,6 +938,12 @@ export enum SkillCategory {
   Tool = 3,
   Other = 4,
 }
+
+export enum SkillLevel {
+  Beginner = 1,
+  Intermediate = 2,
+  Expert = 3,
+}
 ```
 
 ### Human-Readable Labels (for UI display)
@@ -890,6 +956,7 @@ export const ApplicationStatusLabels: Record<ApplicationStatus, string> = {
   [ApplicationStatus.Interview]: 'Interview',
   [ApplicationStatus.Accepted]: 'Accepted',
   [ApplicationStatus.Rejected]: 'Rejected',
+  [ApplicationStatus.Withdrawn]: 'Withdrawn',
 };
 
 export const JobTypeLabels: Record<JobType, string> = {
@@ -930,14 +997,14 @@ export const JobLevelLabels: Record<JobLevel, string> = {
 
 ### 🔐 Auth — `/api/auth`
 
-#### `POST /api/auth/register` — Register a new user
+#### `POST /api/auth/register` — Register a new Candidate
 ```
 Auth: Public
-Body: RegisterRequest
-Response: 201 → RegisterResponse
+Body: RegisterCandidateRequest
+Response: 201 → RegisterResponse (with token — auto-login)
 Errors: 400 (validation) | 409 (email already exists)
 ```
-**Example Request (Candidate):**
+**Example Request:**
 ```json
 {
   "firstName": "Ahmed",
@@ -945,11 +1012,20 @@ Errors: 400 (validation) | 409 (email already exists)
   "email": "ahmed@example.com",
   "password": "P@ssw0rd!",
   "gender": 0,
-  "dateOfBirth": "1995-06-15T00:00:00Z",
-  "userType": "Candidate"
+  "dateOfBirth": "1995-06-15T00:00:00Z"
 }
 ```
-**Example Request (Recruiter):**
+
+---
+
+#### `POST /api/auth/register/company` — Register Recruiter + Create Company
+```
+Auth: Public
+Body: RegisterCompanyRequest
+Response: 201 → RegisterResponse (recruiter gets Admin role)
+Errors: 400 (validation) | 409 (email or taxNumber already exists)
+```
+**Example Request:**
 ```json
 {
   "firstName": "Sara",
@@ -957,11 +1033,33 @@ Errors: 400 (validation) | 409 (email already exists)
   "email": "sara@company.com",
   "password": "P@ssw0rd!",
   "gender": 1,
-  "userType": "Recruiter",
-  "companyId": 1
+  "companyName": "TechCorp",
+  "taxNumber": "TAX123456",
+  "industry": "Technology"
 }
 ```
-> ⚠️ `companyId` is **required** for Recruiter registration. The first recruiter for a company is auto-assigned `Admin` role.
+
+---
+
+#### `POST /api/auth/register/recruiter` — Register Recruiter via Invite Code
+```
+Auth: Public
+Body: RegisterRecruiterRequest
+Response: 201 → RegisterResponse (recruiter gets Standard role)
+Errors: 400 (invalid/expired/used invite code) | 409 (email exists)
+```
+**Example Request:**
+```json
+{
+  "firstName": "Omar",
+  "lastName": "Khalid",
+  "email": "omar@company.com",
+  "password": "P@ssw0rd!",
+  "gender": 0,
+  "inviteCode": "ABC123"
+}
+```
+> ⚠️ All 3 register endpoints return a JWT token — the user is automatically logged in after registration.
 
 ---
 
@@ -1032,10 +1130,10 @@ Response: 200 → CandidateProfileDto
 #### `PUT /api/candidates/skills` — Replace all my skills
 ```
 Auth: Candidate
-Body: { "skillIds": [1, 5, 12, 23] }
-Response: 200 → SkillDto[]
+Body: { "skills": [{ "name": "C#", "level": 3 }, { "name": "React", "level": 2 }] }
+Response: 200 → CandidateSkillDto[]
 ```
-> This **replaces** the entire skill list — not append. Send the complete set.
+> This **replaces** the entire skill list — not append. Send the complete set with SkillLevel values (1=Beginner, 2=Intermediate, 3=Expert).
 
 #### `POST /api/candidates/resume` — Upload resume
 ```
@@ -1101,13 +1199,7 @@ Response: 200 → CandidateDashboardDto
 
 ### 🏢 Companies — `/api/companies`
 
-#### `POST /api/companies` — Create a company
-```
-Auth: SuperAdmin (platform-level)
-Body: CreateCompanyRequest
-Response: 201 → CompanyDetailDto
-Errors: 409 (taxNumber already exists)
-```
+> ⚠️ Companies are created via `POST /api/auth/register/company`. There is no separate company creation endpoint.
 
 #### `GET /api/companies` — List/search companies
 ```
@@ -1124,7 +1216,7 @@ Response: 200 → CompanyDetailDto
 
 #### `PUT /api/companies/{companyId}` — Update company
 ```
-Auth: AdminRecruiter (of this company)
+Auth: Admin Recruiter (of this company)
 Body: UpdateCompanyRequest
 Response: 200 → CompanyDetailDto
 ```
@@ -1132,19 +1224,40 @@ Response: 200 → CompanyDetailDto
 
 #### `PUT /api/companies/{companyId}/logo` — Upload company logo
 ```
-Auth: AdminRecruiter
+Auth: Admin Recruiter
 Content-Type: multipart/form-data
 Body: FormData { image: File }
 Constraints: JPG/PNG, max 5MB
 Response: 200 → { "logoPath": "string" }
 ```
 
-#### `POST /api/companies/{companyId}/recruiters` — Add recruiter to company
+#### `POST /api/companies/{companyId}/invite-codes` — Generate invite code
 ```
-Auth: AdminRecruiter
-Body: AddRecruiterRequest
-Response: 200
+Auth: Admin Recruiter (of this company)
+Body: CreateInviteCodeRequest
+Response: 201 → InviteCodeDto
 ```
+
+#### `GET /api/companies/{companyId}/invite-codes` — List invite codes
+```
+Auth: Admin Recruiter (of this company)
+Response: 200 → InviteCodeDto[]
+```
+
+#### `DELETE /api/companies/{companyId}/invite-codes/{codeId}` — Deactivate invite code
+```
+Auth: Admin Recruiter (of this company)
+Response: 204
+```
+> Does not hard-delete — sets `isActive=false`.
+
+#### `PUT /api/companies/{companyId}/transfer-admin` — Transfer Admin role
+```
+Auth: Admin Recruiter (of this company)
+Body: TransferAdminRequest
+Response: 200 → { "previousAdminId": string, "newAdminId": string }
+```
+> ⚠️ The current Admin is demoted to Standard. No confirmation required.
 
 #### `GET /api/companies/{companyId}/recruiters` — List company recruiters
 ```
@@ -1199,11 +1312,12 @@ Body: UpdateJobRequest (all fields optional)
 Response: 200 → JobDetailDto
 ```
 
-#### `DELETE /api/jobs/{jobId}` — Delete job post
+#### `DELETE /api/jobs/{jobId}` — Soft-delete job post
 ```
 Auth: Recruiter (creator or Admin)
 Response: 204
 ```
+> ⚠️ This is a **soft delete** — the job and its applications are hidden, not permanently removed.
 
 #### `PATCH /api/jobs/{jobId}/publish` — Toggle publish status
 ```
@@ -1406,26 +1520,27 @@ Query: InterviewSearchParams (status?, interviewType?, upcoming?, page, pageSize
 Response: 200 → PagedResult<InterviewListDto>
 ```
 
-#### `POST /api/interviews/{interviewId}/start-ai` — Start AI interview
+#### `POST /api/interviews/{interviewId}/ai-questions` — Get AI interview questions (text-based)
 ```
 Auth: Candidate
-Response: 200 → StartAiInterviewResponse
+Response: 200 → AiInterviewQuestionsResponse
 Precondition: Current time must be within 15 minutes before scheduledAt
 ```
 
-#### `POST /api/interviews/{interviewId}/complete-ai` — Submit AI interview transcript
+#### `POST /api/interviews/{interviewId}/submit-ai` — Submit written answers for AI interview
 ```
 Auth: Candidate
-Body: CompleteAiInterviewRequest
-Response: 200 → CompleteAiInterviewResponse
+Body: SubmitAiInterviewRequest
+Response: 200 → SubmitAiInterviewResponse
 ```
 
-#### `POST /api/interviews/{interviewId}/join` — Join live interview
+#### `POST /api/interviews/{interviewId}/join` — Get live interview meeting link
 ```
 Auth: Candidate or Recruiter (participant)
 Response: 200 → JoinLiveInterviewResponse
 Precondition: Current time must be within 15 minutes before scheduledAt
 ```
+> Meeting link points to a third-party WebRTC service (Daily.co / 100ms). No SignalR signaling needed.
 
 #### `PATCH /api/interviews/{interviewId}/complete` — Complete live interview
 ```
@@ -1538,44 +1653,26 @@ async function disconnectNotifications() {
 
 > User is automatically joined to a personal group (keyed by userId). Notifications are stored in DB if the user is offline — they'll see them when they next fetch `/api/notifications`.
 
-### Interview Hub (WebRTC Signaling)
+### ~~Interview Hub (WebRTC Signaling)~~ — REMOVED
 
-```typescript
-const interviewConnection = new signalR.HubConnectionBuilder()
-  .withUrl('https://localhost:7001/hubs/interview', {
-    accessTokenFactory: () => localStorage.getItem('ies_token') || '',
-  })
-  .withAutomaticReconnect()
-  .build();
+> **Live interviews now use a third-party WebRTC service** (Daily.co / 100ms). The backend creates a room and returns a `meetingLink`. The frontend simply opens/embeds this link — no SignalR signaling or manual WebRTC setup required.
 
-// ── Client sends to server ──
-await interviewConnection.invoke('JoinRoom', roomId);
-await interviewConnection.invoke('SendOffer', roomId, sdpOffer);
-await interviewConnection.invoke('SendAnswer', roomId, sdpAnswer);
-await interviewConnection.invoke('SendIceCandidate', roomId, iceCandidate);
-await interviewConnection.invoke('LeaveRoom', roomId);
-
-// ── Server sends to client ──
-interviewConnection.on('UserJoined', (userId: string) => { /* peer joined */ });
-interviewConnection.on('UserLeft', (userId: string) => { /* peer left */ });
-interviewConnection.on('ReceiveOffer', (sdpOffer: string) => { /* create answer */ });
-interviewConnection.on('ReceiveAnswer', (sdpAnswer: string) => { /* set remote desc */ });
-interviewConnection.on('ReceiveIceCandidate', (candidate: string) => { /* add ice */ });
-```
-
-### WebRTC Live Interview Flow
+### Live Interview Flow (Simplified)
 
 ```
-1. Call POST /api/interviews/{id}/join → get { roomId, signalingHubUrl }
-2. Connect to SignalR interview hub
-3. Invoke JoinRoom(roomId)
-4. Request camera/mic: navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-5. Create RTCPeerConnection
-6. Add local stream tracks to peer connection
-7. CreateOffer → setLocalDescription → invoke SendOffer(roomId, sdp)
-8. Listen for ReceiveAnswer → setRemoteDescription
-9. Exchange ICE candidates via SendIceCandidate / ReceiveIceCandidate
-10. On call end: recruiter calls PATCH /api/interviews/{id}/complete
+1. Recruiter schedules a Live interview → backend creates a room via third-party API
+2. Both participants call POST /api/interviews/{id}/join → get { meetingLink }
+3. Frontend opens meetingLink in an iframe or new tab (Daily.co / 100ms provides the UI)
+4. On call end: recruiter calls PATCH /api/interviews/{id}/complete with score & feedback
+```
+
+### AI Interview Flow (Text-Based)
+
+```
+1. Candidate calls POST /api/interviews/{id}/ai-questions → gets text questions
+2. Candidate writes answers in the UI (form with text areas)
+3. Candidate calls POST /api/interviews/{id}/submit-ai with all answers
+4. Backend sends answers to AI for scoring → returns score + feedback
 ```
 
 ---
@@ -1652,15 +1749,18 @@ Application statuses **must** follow this exact sequence. The backend enforces t
 
 ```
 Pending → UnderReview → Assessment → Interview → Accepted
-              ↓              ↓           ↓
-           Rejected       Rejected    Rejected
+   │          ↓              ↓           ↓
+   │       Rejected       Rejected    Rejected
+   │
+   └───→ Withdrawn (candidate only, via POST .../withdraw)
 ```
 
 **Rules:**
 - ❌ Cannot skip stages (e.g., Pending → Interview)
 - ❌ Cannot move backwards (e.g., Interview → UnderReview)
 - ✅ Can reject from **any** active stage
-- ✅ `Accepted` and `Rejected` are terminal states — no further transitions
+- ✅ `Accepted`, `Rejected`, and `Withdrawn` are terminal states — no further transitions
+- ✅ Withdraw is only allowed from `Pending` status, by the candidate
 
 **Frontend implementation:** Build a pipeline/kanban UI showing these stages. Disable forward buttons that skip stages.
 
@@ -1742,10 +1842,15 @@ The applicants export endpoint returns raw CSV bytes. Handle as blob download (s
 └────┬─────┘    └──────┬───────┘    └─────┬──────┘    └─────┬─────┘    └──────────┘
      │                 │                  │                 │           (Terminal)
      │                 ▼                  ▼                 ▼
-     │           ┌──────────┐       ┌──────────┐      ┌──────────┐
-     └──────────→│ Rejected │←──────│ Rejected │←─────│ Rejected │
-                 └──────────┘       └──────────┘      └──────────┘
-                   (Terminal)
+     ├───────────→┌──────────┐       ┌──────────┐      ┌──────────┐
+     │            │ Rejected │←──────│ Rejected │←─────│ Rejected │
+     │            └──────────┘       └──────────┘      └──────────┘
+     │              (Terminal)
+     ▼
+┌───────────┐
+│ Withdrawn │
+└───────────┘
+  (Terminal, Candidate-only)
 ```
 
 ### Interview Status Flow
