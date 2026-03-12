@@ -140,6 +140,7 @@ namespace IES.api
 
             // ── Services DI ──
             builder.Services.AddScoped<IAuthService, AuthService>();
+            builder.Services.AddScoped<ICompanyService, CompanyService>();
             builder.Services.AddScoped<ICandidateService, CandidateService>();
             builder.Services.AddScoped<IFileStorageService, FileStorageService>();
             builder.Services.AddScoped<IAiServiceClient, AiServiceClient>();

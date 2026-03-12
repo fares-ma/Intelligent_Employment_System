@@ -2,6 +2,7 @@ using AutoMapper;
 using Domain.Models;
 using Domain.Enums;
 using Services.Abstractions.DTOs.Auth;
+using Services.Abstractions.DTOs.Company;
 
 namespace Services.Mapping;
 
@@ -37,6 +38,11 @@ public class AuthMappingProfile : Profile
             .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.Email))
             .ForMember(dest => dest.RecruiterRole, opt => opt.MapFrom(_ => UserRole.Standard))
             .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(_ => DateTime.UtcNow))
+            .IgnoreAllPropertiesWithAnInaccessibleSetter();
+
+        // UpdateCompanyDto → Company
+        CreateMap<UpdateCompanyDto, Company>()
+            .ForMember(dest => dest.UpdatedAt, opt => opt.MapFrom(_ => DateTime.UtcNow))
             .IgnoreAllPropertiesWithAnInaccessibleSetter();
 
         // LoginRequestDto (no mapping needed, used directly in service)
