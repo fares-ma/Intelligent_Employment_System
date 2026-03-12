@@ -5,7 +5,21 @@
 
 ## Summary
 
-Build the complete backend for the Intelligent Employment System (IES) — an AI-powered recruitment platform. The backend implements authentication (JWT + Identity with TPH inheritance), candidate/recruiter/company management, job posting & search, AI-powered resume scoring via a Python microservice, assessments, interviews (AI voice + live WebRTC via SignalR signaling), email/real-time notifications, and dashboards. Architecture: Onion/Clean with ASP.NET Core 10, EF Core + SQL Server, Repository + UnitOfWork patterns.
+Build the complete backend for the Intelligent Employment System (IES) — an AI-powered recruitment platform. The backend implements authentication (JWT + Identity with TPH inheritance, 3 registration endpoints: candidate, company+admin, recruiter+invite-code), candidate/recruiter/company management (with invite code system, admin transfer, education & experience tracking, skill levels), job posting & search (with soft delete), AI-powered resume scoring via a Python microservice, assessments, interviews (text-based AI + live WebRTC via third-party provider), email/real-time notifications, and minimal dashboards. Architecture: Onion/Clean with ASP.NET Core 10, EF Core + SQL Server, Repository + UnitOfWork patterns.
+
+### Key Design Decisions (Session 2)
+- No Super Admin — first recruiter who registers a company = Admin automatically
+- Invite Code system for recruiter onboarding (6-char alphanumeric, max 5 uses + expiry)
+- Junior Recruiter role removed — only Admin + Standard remain
+- IsVerified removed from Company — not needed in MVP
+- SkillLevel enum (Beginner/Intermediate/Expert) added to CandidateSkill and JobPostSkill
+- CandidateEducation & CandidateExperience entities added
+- Withdrawn status added to ApplicationStatus (candidate can withdraw while Pending)
+- Soft Delete (DeletedAt + DeletedBy) on JobPost and JobApplication
+- AI Voice Interview replaced with text-based AI Interview
+- Live interviews via third-party WebRTC provider (Daily.co / 100ms)
+- Match Score three-state: null = processing, 0.0 = calculated zero, 0.0–100.0 = normal
+- MVP = Phases 1–11. Phases 12–14 = future work
 
 ## Technical Context
 
@@ -17,7 +31,7 @@ Build the complete backend for the Intelligent Employment System (IES) — an AI
 **Project Type**: Web API (REST) + SignalR hubs  
 **Performance Goals**: 200 concurrent users, <2s API response, <30s AI scoring, <10s CSV export for 500+ rows  
 **Constraints**: Long-lived JWT (24h, no refresh), resume upload ≤10MB (PDF/DOCX only), strict sequential application pipeline  
-**Scale/Scope**: Graduation project MVP — 34 functional requirements, 17 entities, ~53 API endpoints
+**Scale/Scope**: Graduation project MVP — 34 functional requirements, 20 entities, ~55 API endpoints
 
 ## Constitution Check
 
@@ -77,7 +91,10 @@ Intelligent_Employment_System.slnx
 │   │   │   ├── JobPostSkill.cs
 │   │   │   ├── ResumeSkill.cs
 │   │   │   ├── CandidateAssessment.cs
-│   │   │   └── Notification.cs
+│   │   │   ├── Notification.cs
+│   │   │   ├── CompanyInviteCode.cs
+│   │   │   ├── CandidateEducation.cs
+│   │   │   └── CandidateExperience.cs
 │   │   ├── Enums/                       # Domain enums
 │   │   │   ├── Gender.cs
 │   │   │   ├── UserRole.cs
@@ -89,7 +106,8 @@ Intelligent_Employment_System.slnx
 │   │   │   ├── JobLevel.cs
 │   │   │   ├── QuestionType.cs
 │   │   │   ├── AssessmentType.cs
-│   │   │   └── SkillCategory.cs
+│   │   │   ├── SkillCategory.cs
+│   │   │   └── SkillLevel.cs
 │   │   ├── Contracts/                   # Repository interfaces
 │   │   │   ├── IRepositoryBase.cs
 │   │   │   ├── IUnitOfWork.cs
@@ -103,7 +121,10 @@ Intelligent_Employment_System.slnx
 │   │   │   ├── IAssessmentRepository.cs
 │   │   │   ├── IInterviewRepository.cs
 │   │   │   ├── ISavedJobRepository.cs
-│   │   │   └── INotificationRepository.cs
+│   │   │   ├── INotificationRepository.cs
+│   │   │   ├── ICompanyInviteCodeRepository.cs
+│   │   │   ├── ICandidateEducationRepository.cs
+│   │   │   └── ICandidateExperienceRepository.cs
 │   │   └── Exceptions/                  # Domain exceptions
 │   │       ├── NotFoundException.cs
 │   │       ├── BadRequestException.cs
@@ -120,6 +141,7 @@ Intelligent_Employment_System.slnx
 │   │   ├── InterviewService.cs
 │   │   ├── DashboardService.cs
 │   │   ├── NotificationService.cs
+│   │   ├── InviteCodeService.cs
 │   │   └── Mapping/                     # DTO mapping profiles
 │   │
 │   └── Services.Abstractions/           # Service interfaces + DTOs
@@ -135,6 +157,7 @@ Intelligent_Employment_System.slnx
 │       ├── IAiServiceClient.cs
 │       ├── IEmailService.cs
 │       ├── INotificationService.cs
+│       ├── IInviteCodeService.cs
 │       ├── IFileStorageService.cs
 │       └── DTOs/                        # Request/Response DTOs
 │           ├── Auth/
@@ -145,6 +168,8 @@ Intelligent_Employment_System.slnx
 │           ├── Assessments/
 │           ├── Interviews/
 │           ├── Notifications/
+│           ├── Education/
+│           ├── Experience/
 │           └── Dashboard/
 │
 ├── Infrastructure/
@@ -162,7 +187,10 @@ Intelligent_Employment_System.slnx
 │   │   │       ├── AssessmentConfig.cs
 │   │   │       ├── InterviewConfig.cs
 │   │   │       ├── SavedJobConfig.cs
-│   │   │       └── NotificationConfig.cs
+│   │   │       ├── NotificationConfig.cs
+│   │   │       ├── CompanyInviteCodeConfig.cs
+│   │   │       ├── CandidateEducationConfig.cs
+│   │   │       └── CandidateExperienceConfig.cs
 │   │   ├── Repositories/               # Repository implementations
 │   │   │   ├── RepositoryBase.cs
 │   │   │   ├── UnitOfWork.cs
@@ -176,7 +204,10 @@ Intelligent_Employment_System.slnx
 │   │   │   ├── AssessmentRepository.cs
 │   │   │   ├── InterviewRepository.cs
 │   │   │   ├── SavedJobRepository.cs
-│   │   │   └── NotificationRepository.cs
+│   │   │   ├── NotificationRepository.cs
+│   │   │   ├── CompanyInviteCodeRepository.cs
+│   │   │   ├── CandidateEducationRepository.cs
+│   │   │   └── CandidateExperienceRepository.cs
 │   │   ├── Services/                   # Infrastructure services
 │   │   │   ├── AiServiceClient.cs
 │   │   │   ├── EmailService.cs
@@ -195,7 +226,6 @@ Intelligent_Employment_System.slnx
 │       │   ├── InterviewsController.cs
 │       │   └── NotificationsController.cs
 │       ├── Hubs/
-│       │   ├── InterviewHub.cs
 │       │   └── NotificationHub.cs
 │       └── Middleware/
 │           └── GlobalExceptionHandler.cs

@@ -9,64 +9,109 @@
 
 ### Session 2026-03-04
 
-- Q: How does the first recruiter for a new company get onboarded (chicken-and-egg with CompanyId requirement)? → A: A platform super-admin pre-creates companies; recruiters then join using a CompanyId or invite code.
+- Q: How does the first recruiter for a new company get onboarded (chicken-and-egg with CompanyId requirement)? → A: ~~A platform super-admin pre-creates companies; recruiters then join using a CompanyId or invite code.~~ **REVISED in Session 2 below.**
 - Q: Is a resume required before a candidate can apply for a job? → A: Yes — resume is mandatory; no resume means no application allowed.
 - Q: Can a recruiter skip pipeline stages (e.g., jump from Pending to Interview)? → A: No — strict sequential; every candidate must pass through every stage in order.
 - Q: How should session expiry and renewal work? → A: Single long-lived token (e.g., 24 hours); no refresh token mechanism. Simple approach suitable for a graduation project.
 - Q: How do "similar jobs" and "AI-suggested jobs" differ — do both require AI? → A: Similar jobs use simple rule-based matching (shared skills, same career level, same industry) with no AI dependency. AI-suggested jobs use the AI service to match against the candidate's full profile.
 
+### Session 2026-03-12 — Design Review (25 Decisions)
+
+**Structural:**
+- Q1: No separate Super Admin entity. The first recruiter who registers a company automatically becomes Admin Recruiter.
+- Q2: Recruiters join existing companies via a 6-character alphanumeric Invite Code (max 5 uses + expiry date). Admin Recruiter generates codes.
+- Q3: Junior Recruiter role removed — only Admin and Standard remain. Unjustified complexity for MVP.
+- Q4: Admin transfer endpoint added: `PUT /companies/{id}/transfer-admin`. Old admin becomes Standard.
+
+**Data & Requirements:**
+- Q5: Multiple resumes allowed with `IsDefault` flag. Applications use the default resume unless specified.
+- Q6: Match Score is three-state: `null` = not yet calculated (display "Processing", sort to bottom), `0.0` = calculated zero, `0.0–100.0` = normal.
+- Q7: `IsVerified` field removed from Company. Not needed in MVP — all companies are treated equally.
+- Q8: No limit on job posts per company in MVP.
+- Q9: Expired jobs: hidden from search via query-time filtering + background service sets `IsActive = false` every 24h. Existing applicants still see them. Recruiter can extend ExpiryDate.
+
+**Permissions:**
+- Q10: Standard Recruiter can view all company jobs but can only edit their own.
+- Q11: Candidates can withdraw applications (status = `Withdrawn`) only while `Pending`. Withdrawal is final — no re-application allowed.
+- Q12: Recruiters cannot browse candidate profiles outside their job applicants. Not in MVP.
+- Q13: Match Score is computed once at application time. Profile edits do not trigger recalculation.
+
+**Technical:**
+- Q14: AI service is a Python microservice called via HTTP. C# AiServiceClient falls back to stub values if unavailable.
+- Q15: AI Voice Interview replaced with text-based AI interview. Candidate answers written questions, AI scores responses.
+- Q16: Live interviews use third-party WebRTC provider (Daily.co or 100ms free tier). Backend only creates rooms and returns links.
+- Q17: Email: console logging in dev, Mailtrap for demo, SendGrid free tier for production.
+
+**Improvements:**
+- Q18: Candidate invitation by recruiter — future work, not in MVP.
+- Q19: Messaging system — future work, not in MVP.
+- Q20: Skill Level added to CandidateSkill junction (Beginner=1, Intermediate=2, Expert=3). Also `RequiredLevel` on JobPostSkill.
+- Q21: CandidateEducation (Degree, FieldOfStudy, Institution, GraduationYear) and CandidateExperience (JobTitle, Company, Description, StartDate, EndDate?) added.
+- Q22: Soft Delete (DeletedAt + DeletedBy nullable) applied to Jobs and Applications only.
+
+**Scope:**
+- Q23: MVP = Phases 1–11. Phases 12–14 = future work / frontend aggregation.
+- Q24: Tests: Unit Tests for services (xUnit + Moq) + Integration Tests for Auth endpoints (WebApplicationFactory).
+- Q25: Dashboards deferred to minimal — aggregate numbers only, no new backend endpoints needed.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — User Registration & Authentication (Priority: P1)
 
-A new user (candidate or recruiter) visits the platform and creates an account. Candidates register with personal details and are directed to their dashboard. Recruiters register by selecting "I am an Employer," providing company information, and are directed to the recruiter portal. All users can log in, receive a long-lived session token (e.g., 24 hours) with their role embedded, and are routed to the appropriate dashboard. Users can log out and reset their passwords.
+A new user (candidate or recruiter) visits the platform and creates an account. Candidates register via `POST /api/auth/register` with personal details. Recruiters have two paths: (A) create a new company during registration via `POST /api/auth/register/company`, automatically becoming Admin Recruiter, or (B) join an existing company using a 6-character invite code via `POST /api/auth/register/recruiter`, receiving Standard role. All users can log in, receive a long-lived session token (24 hours) with their role embedded, and are routed to the appropriate dashboard. Users can log out and reset their passwords.
 
 **Why this priority**: Authentication is the foundational gate — no other feature works without it. Every user journey begins with account creation or login.
 
-**Independent Test**: Can be fully tested by creating a candidate account, logging in, verifying the response contains the correct role, and confirming the token grants access to protected endpoints.
+**Independent Test**: Can be fully tested by creating a candidate account, creating a recruiter + company, generating an invite code, joining with another recruiter, logging in, and verifying tokens contain correct roles.
 
 **Acceptance Scenarios**:
 
-1. **Given** a new candidate, **When** they submit valid registration details with userType = "Candidate", **Then** an account is created, a confirmation is returned, and subsequent login returns a token with role "Candidate".
-2. **Given** a new recruiter, **When** they submit valid registration details with userType = "Recruiter" and a CompanyId (or invite code) for a pre-registered company, **Then** a recruiter account is created under that company.
-3. **Given** valid credentials, **When** a user logs in, **Then** the response includes a secure session token and a role field (Candidate / Recruiter / AdminRecruiter).
-4. **Given** invalid credentials, **When** a user attempts to log in, **Then** the system returns an authentication error without revealing which field is incorrect.
-5. **Given** an authenticated user, **When** they log out, **Then** the session token is invalidated.
+1. **Given** a new candidate, **When** they submit valid registration details via `POST /api/auth/register`, **Then** an account is created and the response includes a JWT token with role "Candidate".
+2. **Given** a new recruiter, **When** they submit registration details with company info (name, taxNumber, industry) via `POST /api/auth/register/company`, **Then** a company is created, a recruiter account is created with Admin role, and a JWT token is returned.
+3. **Given** an existing company with a valid invite code, **When** a new recruiter submits registration details with the invite code via `POST /api/auth/register/recruiter`, **Then** a recruiter account is created with Standard role under that company.
+4. **Given** valid credentials, **When** a user logs in, **Then** the response includes a secure session token and a role field (Candidate / Recruiter / Admin).
+5. **Given** invalid credentials, **When** a user attempts to log in, **Then** the system returns an authentication error without revealing which field is incorrect.
+6. **Given** an authenticated user, **When** they log out, **Then** the session token is invalidated.
 
 ---
 
 ### User Story 2 — Candidate Profile & Resume Management (Priority: P1)
 
-A candidate completes their profile by adding a job title, professional summary, years of experience, and skills. They upload their resume (PDF/DOCX), and the system stores it. The candidate can also request an AI-generated CV based on their profile data. The candidate can view and update their profile at any time.
+A candidate completes their profile by adding a job title, professional summary, years of experience, skills (with proficiency level: Beginner/Intermediate/Expert), education history (degree, field of study, institution, graduation year), and work experience (job title, company, description, dates). They upload their resume (PDF/DOCX), and the system stores it. The candidate can also request an AI-generated CV based on their profile data. The candidate can view and update their profile at any time.
 
 **Why this priority**: The candidate profile and resume are prerequisites for job applications, AI scoring, and all downstream candidate features.
 
-**Independent Test**: Can be tested by creating a candidate, updating their profile, uploading a resume file, and verifying all data is persisted and retrievable.
+**Independent Test**: Can be tested by creating a candidate, updating their profile, adding education and experience entries, setting skills with levels, uploading a resume file, and verifying all data is persisted and retrievable.
 
 **Acceptance Scenarios**:
 
 1. **Given** an authenticated candidate, **When** they update their profile with job title, summary, and experience years, **Then** the profile data is saved and retrievable.
-2. **Given** an authenticated candidate, **When** they add skills to their profile, **Then** the skills are associated with the candidate record.
-3. **Given** an authenticated candidate, **When** they upload a PDF or DOCX resume, **Then** the file is stored and linked to their profile.
-4. **Given** an authenticated candidate with a complete profile, **When** they request AI CV generation, **Then** the system produces an AI-enhanced resume and stores its path.
-5. **Given** an invalid file type, **When** a candidate attempts to upload, **Then** the system rejects the upload with a clear error message.
+2. **Given** an authenticated candidate, **When** they add skills with proficiency levels (Beginner/Intermediate/Expert) to their profile, **Then** the skills and their levels are associated with the candidate record.
+3. **Given** an authenticated candidate, **When** they add education entries (degree, field of study, institution, graduation year), **Then** the education data is saved and included in their profile.
+4. **Given** an authenticated candidate, **When** they add work experience entries (job title, company, description, start date, end date), **Then** the experience data is saved. A null end date indicates current employment.
+5. **Given** an authenticated candidate, **When** they upload a PDF or DOCX resume, **Then** the file is stored and linked to their profile.
+6. **Given** an authenticated candidate with a complete profile, **When** they request AI CV generation, **Then** the system produces an AI-enhanced resume and stores its path.
+7. **Given** an invalid file type, **When** a candidate attempts to upload, **Then** the system rejects the upload with a clear error message.
 
 ---
 
 ### User Story 3 — Company Registration & Management (Priority: P1)
 
-A platform super-admin pre-creates companies with details including name, industry, website, tax number, phone number, and description. The company starts as unverified. Once a company exists, an admin recruiter (the first recruiter assigned to the company) can edit company information and add other recruiters to the company. Anyone can view company information and job listings.
+Companies are created during recruiter registration (the first recruiter who registers with company details becomes Admin Recruiter automatically). The Admin Recruiter can edit company information, generate invite codes (6-character alphanumeric, max 5 uses, with expiry), and transfer the admin role to another recruiter. Standard Recruiters join via invite codes. Anyone can view company information and job listings publicly.
 
 **Why this priority**: Companies are the organizational unit for recruiters and jobs — without companies, recruiters cannot post jobs or manage applications.
 
-**Independent Test**: Can be tested by registering a company, adding a recruiter, editing company details, and verifying public company data is accessible.
+**Independent Test**: Can be tested by creating a company (via recruiter registration), generating invite codes, having another recruiter join, editing company details, transferring admin, and verifying public company data is accessible.
 
 **Acceptance Scenarios**:
 
-1. **Given** an admin recruiter, **When** they register a new company with all required fields, **Then** the company is created in an unverified state.
-2. **Given** a registered company, **When** an admin recruiter adds a new recruiter, **Then** the recruiter is associated with that company.
-3. **Given** a duplicate tax number, **When** a company registration is attempted, **Then** the system rejects it with a uniqueness error.
-4. **Given** any user, **When** they request company details, **Then** public company information and job listings are returned.
+1. **Given** a recruiter registering with company details, **When** the registration succeeds, **Then** the company is created and the recruiter becomes Admin.
+2. **Given** an Admin Recruiter, **When** they generate an invite code, **Then** the code is created with a usage limit (default 5) and expiry date.
+3. **Given** a valid invite code, **When** a new recruiter registers with it, **Then** the recruiter joins the company as Standard and the code's usage count increments.
+4. **Given** a duplicate tax number, **When** a company registration is attempted, **Then** the system rejects it with a uniqueness error.
+5. **Given** any user, **When** they request company details, **Then** public company information and job listings are returned.
+6. **Given** an Admin Recruiter, **When** they transfer admin to another recruiter in the same company, **Then** the target becomes Admin and the original becomes Standard.
+7. **Given** an expired or fully-used invite code, **When** a recruiter attempts to register with it, **Then** the system rejects the registration.
 
 ---
 
@@ -104,6 +149,7 @@ A candidate finds a job they are interested in and applies. The system records t
 3. **Given** a candidate with applications, **When** they view their applications list, **Then** all applications are returned with current status, job details, and match score.
 4. **Given** a candidate, **When** they save a job, **Then** the job is bookmarked. Calling save again toggles it off.
 5. **Given** a candidate has already applied for a job, **When** they attempt to apply again, **Then** the system prevents duplicate applications.
+6. **Given** a candidate with a Pending application, **When** they withdraw the application, **Then** the status changes to "Withdrawn" (terminal state). Re-application to the same job is not allowed.
 
 ---
 
@@ -160,18 +206,18 @@ A recruiter creates an assessment for a specific job, either manually or by requ
 
 ### User Story 9 — Interview Scheduling & Conduct (Priority: P3)
 
-A recruiter schedules interviews for shortlisted candidates — either an AI voice interview or a live video interview. For AI interviews, the system generates custom questions based on the job description, conducts the interview via voice interaction, and scores the candidate's responses. For live interviews, the system creates a virtual meeting room with real-time video/audio capabilities and sends reminders to both parties.
+A recruiter schedules interviews for shortlisted candidates — either a text-based AI interview or a live video interview. For AI interviews, the system generates custom questions based on the job description; the candidate answers in writing and the AI scores the responses. For live interviews, the backend creates a room via a third-party WebRTC provider (Daily.co / 100ms) and returns a meeting link to both parties.
 
 **Why this priority**: Interviews are the final evaluation step before hiring decisions — they depend on all prior pipeline stages being operational.
 
-**Independent Test**: Can be tested by scheduling both types of interviews, conducting an AI interview, and verifying scores and feedback are recorded.
+**Independent Test**: Can be tested by scheduling both types of interviews, completing a text-based AI interview, and verifying scores and feedback are recorded.
 
 **Acceptance Scenarios**:
 
 1. **Given** a shortlisted candidate, **When** a recruiter schedules an AI interview, **Then** the interview is created with type "AI", a scheduled time, and status "Scheduled".
-2. **Given** a scheduled AI interview, **When** the candidate starts it, **Then** custom questions are generated, the interview is conducted via voice, and a score with transcript is returned.
-3. **Given** a shortlisted candidate, **When** a recruiter schedules a live interview, **Then** a meeting link is generated and both parties are notified.
-4. **Given** a live interview in progress, **When** both parties join, **Then** real-time video/audio communication is established.
+2. **Given** a scheduled AI interview, **When** the candidate starts it, **Then** custom text-based questions are generated and returned to the candidate.
+3. **Given** AI interview questions, **When** the candidate submits written answers, **Then** the AI scores the responses and returns a score with feedback.
+4. **Given** a shortlisted candidate, **When** a recruiter schedules a live interview, **Then** a meeting room is created via third-party provider and a link is returned.
 5. **Given** a completed interview, **When** the recruiter ends it, **Then** feedback notes and an interview score are recorded.
 
 ---
@@ -220,6 +266,11 @@ Candidates see a dashboard with application count, profile views, saved jobs cou
 - How does the system handle large file uploads? — File size limits must be enforced (e.g., 10MB for resumes), with clear error messages.
 - What happens when a company's tax number is changed? — Tax numbers should be immutable after registration to maintain verification integrity.
 - What happens when a recruiter tries to skip a pipeline stage or move a candidate backwards? — The system must reject the transition and enforce the strict sequential order: Pending → UnderReview → Assessment → Interview → Accepted/Rejected. Rejection is allowed from any stage.
+- What happens when a candidate withdraws an application? — Withdrawal is only allowed when status is Pending. The status becomes Withdrawn (terminal). Re-application to the same job is not permitted.
+- What happens when an invite code expires or reaches its usage limit? — Registration with that code is rejected. The Admin Recruiter can generate a new code.
+- What happens when the only Admin Recruiter leaves the company? — The system provides a transfer-admin endpoint. The old Admin becomes Standard after transfer.
+- What happens when a job is soft-deleted? — It is hidden from search results but existing applicants can still see it in their application history with a "Closed" label.
+- What happens when a candidate updates their profile after applying? — The Match Score stored in the application is NOT recalculated. Profile changes only affect future applications.
 
 ## Requirements *(mandatory)*
 
@@ -231,7 +282,7 @@ Candidates see a dashboard with application count, profile views, saved jobs cou
 - **FR-004**: System MUST allow candidates to create and update their profile including job title, summary, experience years, and skills.
 - **FR-005**: System MUST allow candidates to upload resumes in PDF or DOCX format and store them securely.
 - **FR-006**: System MUST allow candidates to request AI-generated CV creation based on their profile data.
-- **FR-007**: System MUST allow a platform super-admin to pre-create companies, and allow admin recruiters to manage their company details and add other recruiters.
+- **FR-007**: System MUST allow the first recruiter to create a company during registration (becoming Admin automatically), and allow admin recruiters to manage their company details, generate invite codes, and transfer admin role.
 - **FR-008**: System MUST enforce unique tax numbers for company registration.
 - **FR-009**: System MUST allow recruiters to create, edit, delete, publish, and unpublish job posts.
 - **FR-010**: System MUST support job post drafts (unpublished state) and a publish action.
@@ -244,14 +295,14 @@ Candidates see a dashboard with application count, profile views, saved jobs cou
 - **FR-017**: System MUST allow recruiters to view applicants for a job with match score, rating, and status — paginated and filterable.
 - **FR-018**: System MUST allow recruiters to set a star rating (1-5) on job applications.
 - **FR-019**: System MUST allow recruiters to export the applicant list as a CSV file.
-- **FR-020**: System MUST allow recruiters to change application status through the pipeline in strict sequential order: Pending → UnderReview → Assessment → Interview → Accepted / Rejected. Stages cannot be skipped or reversed. A candidate may be Rejected at any stage.
+- **FR-020**: System MUST allow recruiters to change application status through the pipeline in strict sequential order: Pending → UnderReview → Assessment → Interview → Accepted / Rejected. Stages cannot be skipped or reversed. A candidate may be Rejected at any stage. Candidates may Withdraw their own application while it is still Pending.
 - **FR-021**: System MUST communicate with the AI service to analyze resumes, extract skills, process job descriptions, and calculate similarity scores.
 - **FR-022**: System MUST allow recruiters to create assessments with questions of types: MCQ, True/False, Open-Ended, and Coding.
 - **FR-023**: System MUST allow AI-generated assessment creation from job descriptions.
 - **FR-024**: System MUST allow candidates to submit assessment answers within a defined time window and receive scores.
 - **FR-025**: System MUST support scheduling of both AI and live interviews.
-- **FR-026**: System MUST generate custom interview questions from job descriptions for AI voice interviews.
-- **FR-027**: System MUST support real-time video/audio communication for live interviews.
+- **FR-026**: System MUST generate custom interview questions from job descriptions for text-based AI interviews. Candidates answer in writing and the AI scores responses.
+- **FR-027**: System MUST support live video interviews via a third-party WebRTC provider (Daily.co / 100ms). Backend creates rooms and returns meeting links.
 - **FR-028**: System MUST send email notifications for interview reminders, status changes, and acceptance/rejection.
 - **FR-029**: System MUST deliver real-time in-app notifications for key events.
 - **FR-030**: System MUST provide candidate dashboard data: applications count, saved jobs count, upcoming interviews, recent activity, and AI-suggested jobs (matched via the AI service against the candidate's full profile; gracefully omitted if AI service is unavailable).
@@ -264,8 +315,8 @@ Candidates see a dashboard with application count, profile views, saved jobs cou
 
 - **User**: A person who uses the platform. Can be a Candidate (job seeker) or a Recruiter (employer representative). All users share common identity information (name, email, phone, account status).
 - **Candidate**: A job seeker who maintains a professional profile (job title, summary, experience), a set of skills, and one or more resumes. Candidates apply for jobs and track their applications.
-- **Recruiter**: An employer representative who belongs to a company. Recruiters have organizational roles (admin, standard, junior) that determine their permissions within the company.
-- **Company**: An employer organization identified by a unique tax registration. Companies have recruiters, post jobs, and go through a verification process.
+- **Recruiter**: An employer representative who belongs to a company. Recruiters have organizational roles (Admin or Standard) that determine their permissions within the company.
+- **Company**: An employer organization identified by a unique tax registration. Companies have recruiters, post jobs, and manage invite codes for onboarding new recruiters.
 - **Job Post**: A job opportunity posted by a company — includes title, description, required skills, salary range, career level, and validity period. Can be in draft or published state.
 - **Resume**: A candidate's career document — includes structured summaries of experience, education, and activities, plus the original uploaded file and any AI-enhanced version.
 - **Job Application**: A candidate's application to a specific job — tracks the application date, current pipeline stage, AI match score, recruiter rating, and the resume submitted.
@@ -304,7 +355,7 @@ Candidates see a dashboard with application count, profile views, saved jobs cou
 - Real-time features (live interviews, in-app notifications) require a bidirectional communication channel and peer-to-peer media capabilities.
 - The frontend is developed by a separate team and consumes the backend's REST APIs — the backend does not serve the user interface.
 - The system follows a layered architecture with strict dependency rules to maintain separation of concerns.
-- Junior Recruiter is a role classification, not a distinct user type — it is handled through the role system.
+- Only two recruiter roles exist: Admin and Standard. Junior Recruiter was evaluated and removed as unjustified complexity for MVP scope.
 - AI-processed job description data is stored alongside the original description, not in a separate structure.
 - Match scores are stored as decimal values for precision.
 - Performance targets assume standard web application expectations unless otherwise specified.
@@ -330,9 +381,11 @@ Candidates see a dashboard with application count, profile views, saved jobs cou
 - AI model training and ML pipeline development (AI service is a separate component)
 - Payment processing or subscription management
 - Internationalization/localization (single-language MVP)
-- Full admin panel for platform-level system administration (super-admin) — only basic company creation by a super-admin role is in scope; a complete admin dashboard is not
+- Platform-level super-admin panel — companies are created by recruiters during registration
+- Candidate invitation by recruiters (future work)
+- Messaging system between candidates and recruiters (future work)
 - Mobile application backend-specific features
-- Audit logging beyond standard security event tracking
+- Advanced dashboards — minimal aggregate numbers only, frontend aggregation preferred
 
 ## Dependencies
 

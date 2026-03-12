@@ -38,10 +38,16 @@ Get the current candidate's profile.
   "address": "string?",
   "city": "string?",
   "country": "string?",
-  "skills": ["{ id, name, category }"],
+  "skills": ["{ id, name, category, level }"],
+  "education": ["{ id, degree, fieldOfStudy, institution, graduationYear }"],
+  "experience": ["{ id, jobTitle, company, description, startDate, endDate }"],
   "resumes": ["{ id, originalFileName, fileType, isDefault, createdAt }"]
 }
 ```
+
+**Notes**:
+- `skills[].level` is the SkillLevel enum: 1=Beginner, 2=Intermediate, 3=Expert
+- `education` and `experience` are managed via separate CRUD endpoints (see below)
 
 ---
 
@@ -79,22 +85,143 @@ Update the current candidate's profile.
 
 ## PUT /api/candidates/skills
 
-Set the candidate's skills (replaces existing set).
+Set the candidate's skills with levels (replaces entire existing set).
 
 **Authorization**: Bearer JWT (Candidate)
 
 **Request Body**:
 ```json
 {
-  "skillIds": ["int (array of existing skill IDs)"]
+  "skills": [
+    { "name": "string (required)", "level": "int (required, 1=Beginner, 2=Intermediate, 3=Expert)" }
+  ]
 }
 ```
 
 **Responses**:
 | Status | Body | Condition |
 |--------|------|-----------|
-| 200 | `[{ id, name, category }]` | Skills updated |
-| 400 | Error | Invalid skill IDs |
+| 200 | `[{ id, name, category, level }]` | Skills updated |
+| 400 | Error | Invalid skill names or level values |
+
+**Notes**:
+- Replace-all semantics: existing skills are removed and replaced with the provided list
+- Skill names are matched against the Skills table (case-insensitive); unknown names return 400
+- Level must be a valid SkillLevel enum value (1, 2, or 3)
+
+---
+
+## POST /api/candidates/education
+
+Add an education entry.
+
+**Authorization**: Bearer JWT (Candidate)
+
+**Request Body**:
+```json
+{
+  "degree": "string (required, max 200)",
+  "fieldOfStudy": "string (required, max 200)",
+  "institution": "string (required, max 300)",
+  "graduationYear": "int? (e.g. 2023)"
+}
+```
+
+**Responses**:
+| Status | Body | Condition |
+|--------|------|-----------|
+| 201 | `{ id, degree, fieldOfStudy, institution, graduationYear }` | Created |
+| 400 | Error | Validation error |
+
+---
+
+## PUT /api/candidates/education/{educationId}
+
+Update an education entry.
+
+**Authorization**: Bearer JWT (Candidate, must own the entry)
+
+**Request Body**: Same fields as POST (all optional for partial update)
+
+**Responses**:
+| Status | Body | Condition |
+|--------|------|-----------|
+| 200 | `{ id, degree, fieldOfStudy, institution, graduationYear }` | Updated |
+| 400 | Error | Validation error |
+| 404 | Error | Not found or not owned |
+
+---
+
+## DELETE /api/candidates/education/{educationId}
+
+Delete an education entry.
+
+**Authorization**: Bearer JWT (Candidate, must own the entry)
+
+**Responses**:
+| Status | Body | Condition |
+|--------|------|-----------|
+| 204 | *(no body)* | Deleted |
+| 404 | Error | Not found or not owned |
+
+---
+
+## POST /api/candidates/experience
+
+Add a work experience entry.
+
+**Authorization**: Bearer JWT (Candidate)
+
+**Request Body**:
+```json
+{
+  "jobTitle": "string (required, max 200)",
+  "company": "string (required, max 200)",
+  "description": "string? (max 500)",
+  "startDate": "string (required, ISO 8601 date)",
+  "endDate": "string? (ISO 8601 date, must be after startDate)"
+}
+```
+
+**Responses**:
+| Status | Body | Condition |
+|--------|------|-----------|
+| 201 | `{ id, jobTitle, company, description, startDate, endDate }` | Created |
+| 400 | Error | Validation error |
+
+**Notes**:
+- `endDate` is null for current positions
+
+---
+
+## PUT /api/candidates/experience/{experienceId}
+
+Update a work experience entry.
+
+**Authorization**: Bearer JWT (Candidate, must own the entry)
+
+**Request Body**: Same fields as POST (all optional for partial update)
+
+**Responses**:
+| Status | Body | Condition |
+|--------|------|-----------|
+| 200 | `{ id, jobTitle, company, description, startDate, endDate }` | Updated |
+| 400 | Error | Validation error |
+| 404 | Error | Not found or not owned |
+
+---
+
+## DELETE /api/candidates/experience/{experienceId}
+
+Delete a work experience entry.
+
+**Authorization**: Bearer JWT (Candidate, must own the entry)
+
+**Responses**:
+| Status | Body | Condition |
+|--------|------|-----------|
+| 204 | *(no body)* | Deleted |
+| 404 | Error | Not found or not owned |
 
 ---
 

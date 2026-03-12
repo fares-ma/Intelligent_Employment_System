@@ -5,30 +5,10 @@
 
 ---
 
-## POST /api/companies
+## ~~POST /api/companies~~ (REMOVED)
 
-Create a new company (super-admin only).
-
-**Authorization**: Bearer JWT (Admin role — platform super-admin)
-
-**Request Body**:
-```json
-{
-  "name": "string (required, max 200)",
-  "industry": "string? (max 100)",
-  "website": "string? (max 500)",
-  "taxNumber": "string (required, max 50)",
-  "phoneNumber": "string? (max 20)",
-  "description": "string? (max 2000)"
-}
-```
-
-**Responses**:
-| Status | Body | Condition |
-|--------|------|-----------|
-| 201 | `CompanyDto` | Created |
-| 400 | Error | Validation error |
-| 409 | Error | TaxNumber already exists |
+> **Removed**: Companies are now created via `POST /api/auth/register/company` (see auth.md).
+> There is no super-admin role. The first recruiter who creates a company automatically becomes its Admin.
 
 ---
 
@@ -54,7 +34,6 @@ Get company details (public).
   "phoneNumber": "string?",
   "description": "string?",
   "logoPath": "string?",
-  "isVerified": "bool",
   "jobCount": "int",
   "createdAt": "string"
 }
@@ -86,12 +65,7 @@ List companies with search (public).
 
 Update company details.
 
-**Authorization**: Bearer JWT (AdminRecruiter belonging to this company)
-
-**Request Body**:
-```json
-{
-  "name": "string? (max 200)",
+**Authorization**: Bearer JWT (Admin Recruiter belonging to this company)
   "industry": "string? (max 100)",
   "website": "string? (max 500)",
   "phoneNumber": "string? (max 20)",
@@ -115,7 +89,7 @@ Update company details.
 
 Upload or update company logo.
 
-**Authorization**: Bearer JWT (AdminRecruiter belonging to this company)
+**Authorization**: Bearer JWT (Admin Recruiter belonging to this company)
 
 **Request**: `multipart/form-data`
 | Field | Type | Constraints |
@@ -131,28 +105,90 @@ Upload or update company logo.
 
 ---
 
-## POST /api/companies/{companyId}/recruiters
+## POST /api/companies/{companyId}/invite-codes
 
-Add a recruiter to the company.
+Generate a new invite code for the company.
 
-**Authorization**: Bearer JWT (AdminRecruiter belonging to this company)
+**Authorization**: Bearer JWT (Admin Recruiter belonging to this company)
 
 **Request Body**:
 ```json
 {
-  "userId": "string (required, existing recruiter user ID)",
-  "recruiterRole": "int? (default: 1=Standard)"
+  "maxUses": "int (required, 1-100)",
+  "expiresAt": "string (required, ISO 8601, must be future)"
 }
 ```
 
 **Responses**:
 | Status | Body | Condition |
 |--------|------|-----------|
-| 200 | `{ userId, companyId, recruiterRole }` | Added |
-| 400 | Error | User is not a recruiter type |
+| 201 | `{ id, code, maxUses, currentUses, expiresAt, isActive, createdAt }` | Created |
+| 400 | Error | Validation error |
 | 403 | Error | Not admin of this company |
-| 404 | Error | User not found |
-| 409 | Error | Recruiter already belongs to a company |
+
+**Notes**:
+- Code is auto-generated: 6-character alphanumeric (uppercase), unique
+- New invite codes start with IsActive=true, CurrentUses=0
+
+---
+
+## GET /api/companies/{companyId}/invite-codes
+
+List all invite codes for the company.
+
+**Authorization**: Bearer JWT (Admin Recruiter belonging to this company)
+
+**Responses**:
+| Status | Body | Condition |
+|--------|------|-----------|
+| 200 | `[{ id, code, maxUses, currentUses, expiresAt, isActive, createdAt }]` | Success |
+| 403 | Error | Not admin of this company |
+
+---
+
+## DELETE /api/companies/{companyId}/invite-codes/{codeId}
+
+Deactivate an invite code.
+
+**Authorization**: Bearer JWT (Admin Recruiter belonging to this company)
+
+**Responses**:
+| Status | Body | Condition |
+|--------|------|-----------|
+| 204 | *(no body)* | Deactivated (sets IsActive=false) |
+| 403 | Error | Not admin of this company |
+| 404 | Error | Code not found |
+
+**Notes**: Does not hard-delete; sets IsActive=false so existing usage history is preserved.
+
+---
+
+## PUT /api/companies/{companyId}/transfer-admin
+
+Transfer Admin role to another recruiter in the same company.
+
+**Authorization**: Bearer JWT (Admin Recruiter belonging to this company)
+
+**Request Body**:
+```json
+{
+  "newAdminUserId": "string (required, must be a Standard Recruiter in same company)"
+}
+```
+
+**Responses**:
+| Status | Body | Condition |
+|--------|------|-----------|
+| 200 | `{ previousAdminId, newAdminId }` | Transferred |
+| 400 | Error | Target user is not a Standard Recruiter in this company |
+| 403 | Error | Not admin of this company |
+| 404 | Error | Target user not found |
+
+**Notes**:
+- The current Admin is demoted to Standard
+- The target user is promoted to Admin
+- Both changes happen in a single transaction
+- No confirmation step required
 
 ---
 

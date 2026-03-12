@@ -133,3 +133,6 @@ appsettings.Local.json
 
 # Testsprite
 .testsprite/
+
+# Uploaded files (resumes, profile pictures, etc.)
+**/Uploads/

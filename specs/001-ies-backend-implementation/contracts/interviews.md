@@ -61,7 +61,7 @@ Get interview details.
   "meetingLink": "string? (live interviews only)",
   "score": "decimal?",
   "feedbackNotes": "string?",
-  "aiTranscript": "string? (AI interviews only, recruiter-visible)",
+  "aiAnswers": "string? (AI interviews only, JSON of Q&A pairs, recruiter-visible)",
   "completedAt": "string?",
   "createdAt": "string"
 }
@@ -95,34 +95,40 @@ List interviews for current user.
 
 ---
 
-## POST /api/interviews/{interviewId}/start-ai
+## POST /api/interviews/{interviewId}/ai-questions
 
-Start an AI voice interview.
+Get AI-generated interview questions (text-based).
 
 **Authorization**: Bearer JWT (Candidate — must be the interviewee)
 
 **Responses**:
 | Status | Body | Condition |
 |--------|------|-----------|
-| 200 | `{ interviewId, questions: [{ text, expectedTopics }], status: "InProgress" }` | Started |
+| 200 | `{ interviewId, questions: [{ id: int, text: string }], status: "InProgress" }` | Questions generated |
 | 400 | Error | Not within allowed time window (15min before to scheduled+duration) |
 | 400 | Error | Interview is not AI type or not in Scheduled status |
 | 503 | Error | AI service unavailable |
 
-**Notes**: Cannot start more than 15 minutes before scheduled time.
+**Notes**:
+- Questions are generated based on the job description and candidate profile
+- Cannot start more than 15 minutes before scheduled time
+- Sets interview status to InProgress
+- If AI service is unavailable, returns predefined fallback questions
 
 ---
 
-## POST /api/interviews/{interviewId}/complete-ai
+## POST /api/interviews/{interviewId}/submit-ai
 
-Complete an AI voice interview with transcript.
+Submit written answers for an AI interview.
 
 **Authorization**: Bearer JWT (Candidate — must be the interviewee)
 
 **Request Body**:
 ```json
 {
-  "transcript": "string (required, max 10000)"
+  "answers": [
+    { "questionId": "int", "answer": "string (required, max 2000)" }
+  ]
 }
 ```
 
@@ -130,28 +136,35 @@ Complete an AI voice interview with transcript.
 | Status | Body | Condition |
 |--------|------|-----------|
 | 200 | `{ interviewId, score, feedback, status: "Completed" }` | Scored |
-| 400 | Error | Interview not InProgress |
+| 400 | Error | Interview not InProgress or missing answers |
 | 503 | Error | AI service unavailable for scoring |
+
+**Notes**:
+- All questions must be answered
+- AI evaluates written answers and returns a score (0-100) and textual feedback
+- Answers are stored as JSON in the `AiAnswers` field
+- If AI scoring is unavailable, answers are saved but score remains null
 
 ---
 
 ## POST /api/interviews/{interviewId}/join
 
-Join a live interview room (both candidate and recruiter).
+Get the meeting link for a live interview.
 
 **Authorization**: Bearer JWT (Candidate or Recruiter — must be participant)
 
 **Responses**:
 | Status | Body | Condition |
 |--------|------|-----------|
-| 200 | `{ interviewId, meetingLink, signalingHubUrl, roomId }` | Joined |
+| 200 | `{ interviewId, meetingLink }` | Meeting link returned |
 | 400 | Error | Not within allowed time window |
 | 400 | Error | Interview is not Live type |
 | 403 | Error | Not a participant |
 
 **Notes**: 
-- Returns SignalR hub URL for WebRTC signaling
+- Meeting link is auto-generated when the interview is created (via third-party service like Daily.co / 100ms)
 - Cannot join more than 15 minutes before scheduled time
+- Backend creates the room via third-party API and stores the meeting link
 
 ---
 
@@ -198,28 +211,3 @@ Cancel a scheduled interview.
 | 400 | Error | Interview not in Scheduled status |
 | 403 | Error | Not authorized |
 
----
-
-## SignalR Hub: /hubs/interview
-
-WebRTC signaling for live interviews.
-
-**Authentication**: JWT via `access_token` query parameter
-
-**Client → Server Methods**:
-| Method | Parameters | Description |
-|--------|-----------|-------------|
-| JoinRoom | `interviewId: int` | Join interview signaling room |
-| LeaveRoom | `interviewId: int` | Leave interview signaling room |
-| SendOffer | `interviewId: int, sdp: string` | Send WebRTC SDP offer |
-| SendAnswer | `interviewId: int, sdp: string` | Send WebRTC SDP answer |
-| SendIceCandidate | `interviewId: int, candidate: string` | Forward ICE candidate |
-
-**Server → Client Methods**:
-| Method | Parameters | Description |
-|--------|-----------|-------------|
-| UserJoined | `userId: string, name: string` | Other participant joined |
-| UserLeft | `userId: string` | Other participant left |
-| ReceiveOffer | `sdp: string` | Receive WebRTC offer |
-| ReceiveAnswer | `sdp: string` | Receive WebRTC answer |
-| ReceiveIceCandidate | `candidate: string` | Receive ICE candidate |
