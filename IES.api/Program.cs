@@ -145,6 +145,9 @@ namespace IES.api
             builder.Services.AddScoped<IFileStorageService, FileStorageService>();
             builder.Services.AddScoped<IAiServiceClient, AiServiceClient>();
             builder.Services.AddScoped<IInviteCodeService, InviteCodeService>();
+            builder.Services.AddScoped<IEducationService, EducationService>();
+            builder.Services.AddScoped<IExperienceService, ExperienceService>();
+            builder.Services.AddScoped<ISkillService, SkillService>();
 
             // ── Configuration for FileStorage ──
             builder.Services.Configure<Shared.Configuration.FileStorageSettings>(
