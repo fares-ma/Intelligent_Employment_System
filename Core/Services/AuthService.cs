@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Domain.Models;
+using Domain.Contracts;
 using Domain.Exceptions;
 using Domain.Enums;
 using Microsoft.AspNetCore.Identity;
@@ -18,6 +19,8 @@ public class AuthService : IAuthService
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly RoleManager<IdentityRole> _roleManager;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IInviteCodeService _inviteCodeService;
     private readonly IConfiguration _configuration;
     private readonly IMemoryCache _memoryCache;
     private readonly ILogger<AuthService> _logger;
@@ -28,12 +31,16 @@ public class AuthService : IAuthService
     public AuthService(
         UserManager<ApplicationUser> userManager,
         RoleManager<IdentityRole> roleManager,
+        IUnitOfWork unitOfWork,
+        IInviteCodeService inviteCodeService,
         IConfiguration configuration,
         IMemoryCache memoryCache,
         ILogger<AuthService> logger)
     {
         _userManager = userManager;
         _roleManager = roleManager;
+        _unitOfWork = unitOfWork;
+        _inviteCodeService = inviteCodeService;
         _configuration = configuration;
         _memoryCache = memoryCache;
         _logger = logger;
@@ -146,6 +153,128 @@ public class AuthService : IAuthService
         _logger.LogInformation("User {Email} logged in with role {Role}", user.Email, primaryRole);
 
         return BuildLoginResponse(user, primaryRole);
+    }
+
+    /// <summary>
+    /// Register a new company with an Admin recruiter (one-step onboarding)
+    /// </summary>
+    public async Task<LoginResponseDto> RegisterCompanyAsync(RegisterCompanyRequestDto request)
+    {
+        // Check if user already exists
+        var existingUser = await _userManager.FindByEmailAsync(request.Email);
+        if (existingUser != null)
+            throw new BadRequestException("User with this email already exists");
+
+        // Parse Gender enum
+        if (!Enum.TryParse<Gender>(request.Gender, true, out var gender))
+            throw new BadRequestException("Invalid gender. Must be 'Male' or 'Female'");
+
+        // Validate company tax number uniqueness
+        var existingCompany = await _unitOfWork.Companies.GetByTaxNumberAsync(request.TaxNumber);
+        if (existingCompany != null)
+            throw new BadRequestException("Company with this tax number already exists");
+
+        await EnsureRolesExistAsync();
+
+        // Create company
+        var company = new Company
+        {
+            Name = request.CompanyName,
+            TaxNumber = request.TaxNumber,
+            Industry = request.Industry,
+            Website = request.Website,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _unitOfWork.Companies.Create(company);
+        await _unitOfWork.SaveChangesAsync();
+
+        _logger.LogInformation("Company created: {CompanyName} (TaxNumber: {TaxNumber})", request.CompanyName, request.TaxNumber);
+
+        // Create Admin recruiter user for this company
+        var recruiter = new Recruiter
+        {
+            UserName = request.Email,
+            Email = request.Email,
+            FirstName = request.FirstName,
+            LastName = request.LastName,
+            PhoneNumber = request.PhoneNumber,
+            Gender = gender,
+            DateOfBirth = request.DateOfBirth,
+            CompanyId = company.Id,
+            RecruiterRole = UserRole.Admin, // First recruiter is always Admin
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var result = await _userManager.CreateAsync(recruiter, request.Password);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new BadRequestException($"User creation failed: {errors}");
+        }
+
+        var roleResult = await _userManager.AddToRoleAsync(recruiter, "Admin");
+        if (!roleResult.Succeeded)
+        {
+            _logger.LogError("Failed to assign Admin role to recruiter {Email}", recruiter.Email);
+        }
+
+        _logger.LogInformation("Admin recruiter {Email} created for company {CompanyId}", recruiter.Email, company.Id);
+
+        return BuildLoginResponse(recruiter, "Admin");
+    }
+
+    /// <summary>
+    /// Register as a Standard recruiter using an invite code
+    /// </summary>
+    public async Task<LoginResponseDto> RegisterRecruiterAsync(RegisterRecruiterRequestDto request)
+    {
+        // Check if user already exists
+        var existingUser = await _userManager.FindByEmailAsync(request.Email);
+        if (existingUser != null)
+            throw new BadRequestException("User with this email already exists");
+
+        // Parse Gender enum
+        if (!Enum.TryParse<Gender>(request.Gender, true, out var gender))
+            throw new BadRequestException("Invalid gender. Must be 'Male' or 'Female'");
+
+        // Validate and consume invite code
+        int companyId = await _inviteCodeService.ValidateAndUseAsync(request.InviteCode);
+
+        await EnsureRolesExistAsync();
+
+        // Create Standard recruiter
+        var recruiter = new Recruiter
+        {
+            UserName = request.Email,
+            Email = request.Email,
+            FirstName = request.FirstName,
+            LastName = request.LastName,
+            PhoneNumber = request.PhoneNumber,
+            Gender = gender,
+            DateOfBirth = request.DateOfBirth,
+            CompanyId = companyId,
+            RecruiterRole = UserRole.Standard, // Invited recruiter is Standard
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var result = await _userManager.CreateAsync(recruiter, request.Password);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new BadRequestException($"User creation failed: {errors}");
+        }
+
+        var roleResult = await _userManager.AddToRoleAsync(recruiter, "Recruiter");
+        if (!roleResult.Succeeded)
+        {
+            _logger.LogError("Failed to assign Recruiter role to user {Email}", recruiter.Email);
+        }
+
+        _logger.LogInformation("Standard recruiter {Email} registered for company {CompanyId} via invite code", recruiter.Email, companyId);
+
+        return BuildLoginResponse(recruiter, "Recruiter");
     }
 
     public Task LogoutAsync(string jti)
