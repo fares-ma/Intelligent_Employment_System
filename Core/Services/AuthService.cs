@@ -51,7 +51,7 @@ public class AuthService : IAuthService
         // Check if user already exists
         var existingUser = await _userManager.FindByEmailAsync(request.Email);
         if (existingUser != null)
-            throw new BadRequestException("User with this email already exists");
+            throw new ConflictException("User with this email already exists");
 
         // Validate user type
         if (request.UserType is not ("Candidate" or "Recruiter"))
@@ -59,7 +59,7 @@ public class AuthService : IAuthService
 
         // Parse Gender enum
         if (!Enum.TryParse<Gender>(request.Gender, true, out var gender))
-            throw new BadRequestException("Invalid gender. Must be 'Male' or 'Female'");
+            throw new BadRequestException("Invalid gender. Must be 'Male', 'Female', or 'Other'");
 
         // Ensure Identity roles exist (idempotent)
         await EnsureRolesExistAsync();
@@ -163,16 +163,16 @@ public class AuthService : IAuthService
         // Check if user already exists
         var existingUser = await _userManager.FindByEmailAsync(request.Email);
         if (existingUser != null)
-            throw new BadRequestException("User with this email already exists");
+            throw new ConflictException("User with this email already exists");
 
         // Parse Gender enum
         if (!Enum.TryParse<Gender>(request.Gender, true, out var gender))
-            throw new BadRequestException("Invalid gender. Must be 'Male' or 'Female'");
+            throw new BadRequestException("Invalid gender. Must be 'Male', 'Female', or 'Other'");
 
         // VALIDATE COMPANY TAX NUMBER UNIQUENESS FIRST (before creating user to prevent orphaned records)
         var existingCompany = await _unitOfWork.Companies.GetByTaxNumberAsync(request.TaxNumber);
         if (existingCompany != null)
-            throw new BadRequestException("Company with this tax number already exists");
+            throw new ConflictException("Company with this tax number already exists");
 
         await EnsureRolesExistAsync();
 
@@ -264,11 +264,11 @@ public class AuthService : IAuthService
         // Check if user already exists
         var existingUser = await _userManager.FindByEmailAsync(request.Email);
         if (existingUser != null)
-            throw new BadRequestException("User with this email already exists");
+            throw new ConflictException("User with this email already exists");
 
         // Parse Gender enum
         if (!Enum.TryParse<Gender>(request.Gender, true, out var gender))
-            throw new BadRequestException("Invalid gender. Must be 'Male' or 'Female'");
+            throw new BadRequestException("Invalid gender. Must be 'Male', 'Female', or 'Other'");
 
         // VALIDATE AND CONSUME INVITE CODE FIRST (before creating user to prevent orphaned records)
         int companyId = await _inviteCodeService.ValidateAndUseAsync(request.InviteCode);

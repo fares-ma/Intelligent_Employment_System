@@ -42,6 +42,7 @@ public class GlobalExceptionHandler
         {
             UnauthorizedException => ((int)HttpStatusCode.Unauthorized, exception.Message),
             NotFoundException => ((int)HttpStatusCode.NotFound, exception.Message),
+            ConflictException => ((int)HttpStatusCode.Conflict, exception.Message),
             BadRequestException => ((int)HttpStatusCode.BadRequest, exception.Message),
             ForbiddenException => ((int)HttpStatusCode.Forbidden, exception.Message),
             _ => ((int)HttpStatusCode.InternalServerError, "An unexpected error occurred.")
