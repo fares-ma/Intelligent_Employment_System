@@ -44,6 +44,12 @@ public class JobApplicationConfig : IEntityTypeConfiguration<JobApplication>
         builder.Property(ja => ja.MatchScore)
             .HasPrecision(5, 2);
 
+        builder.Property(ja => ja.DeletedAt)
+            .IsRequired(false);
+
+        builder.Property(ja => ja.DeletedBy)
+            .HasMaxLength(450);
+
         builder.Property(ja => ja.AppliedAt)
             .HasDefaultValueSql("getutcdate()");
     }

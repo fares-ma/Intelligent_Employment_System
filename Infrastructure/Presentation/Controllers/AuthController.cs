@@ -23,19 +23,53 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Register a new user account (Candidate or Recruiter)
+    /// Register a new candidate account
     /// </summary>
-    /// <response code="201">User registered successfully, token returned</response>
-    /// <response code="400">Invalid input (invalid userType, missing companyId for recruiter, weak password)</response>
-    /// <response code="409">User with this email already exists</response>
+    /// <response code="201">Candidate registered successfully, token returned</response>
+    /// <response code="400">Invalid input or weak password</response>
+    /// <response code="409">Email already exists</response>
     [HttpPost("register")]
     [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<LoginResponseDto>> Register([FromBody] RegisterRequestDto request)
     {
-        _logger.LogInformation("Registration attempt for email: {Email}", request.Email);
+        _logger.LogInformation("Candidate registration attempt for email: {Email}", request.Email);
         var response = await _authService.RegisterAsync(request);
+        return CreatedAtAction(nameof(Register), response);
+    }
+
+    /// <summary>
+    /// Register a new company with an Admin recruiter (one-step onboarding)
+    /// </summary>
+    /// <response code="201">Company and Admin recruiter created, token returned</response>
+    /// <response code="400">Invalid input, duplicate tax number, or weak password</response>
+    /// <response code="409">Email already exists</response>
+    [HttpPost("register/company")]
+    [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<LoginResponseDto>> RegisterCompany([FromBody] RegisterCompanyRequestDto request)
+    {
+        _logger.LogInformation("Company registration attempt: {CompanyName} by {Email}", request.CompanyName, request.Email);
+        var response = await _authService.RegisterCompanyAsync(request);
+        return CreatedAtAction(nameof(Register), response);
+    }
+
+    /// <summary>
+    /// Register as a Standard recruiter using an invite code
+    /// </summary>
+    /// <response code="201">Recruiter registered successfully, token returned</response>
+    /// <response code="400">Invalid invite code, weak password, or invalid input</response>
+    /// <response code="409">Email already exists</response>
+    [HttpPost("register/recruiter")]
+    [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<LoginResponseDto>> RegisterRecruiter([FromBody] RegisterRecruiterRequestDto request)
+    {
+        _logger.LogInformation("Recruiter registration attempt (via invite code) for email: {Email}", request.Email);
+        var response = await _authService.RegisterRecruiterAsync(request);
         return CreatedAtAction(nameof(Register), response);
     }
 

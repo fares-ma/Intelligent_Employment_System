@@ -134,12 +134,16 @@ namespace IES.api
             builder.Services.AddScoped<IResumeRepository, ResumeRepository>();
             builder.Services.AddScoped<ISavedJobRepository, SavedJobRepository>();
             builder.Services.AddScoped<ISkillRepository, SkillRepository>();
+            builder.Services.AddScoped<ICompanyInviteCodeRepository, CompanyInviteCodeRepository>();
+            builder.Services.AddScoped<ICandidateEducationRepository, CandidateEducationRepository>();
+            builder.Services.AddScoped<ICandidateExperienceRepository, CandidateExperienceRepository>();
 
             // ── Services DI ──
             builder.Services.AddScoped<IAuthService, AuthService>();
             builder.Services.AddScoped<ICandidateService, CandidateService>();
             builder.Services.AddScoped<IFileStorageService, FileStorageService>();
             builder.Services.AddScoped<IAiServiceClient, AiServiceClient>();
+            builder.Services.AddScoped<IInviteCodeService, InviteCodeService>();
 
             // ── Configuration for FileStorage ──
             builder.Services.Configure<Shared.Configuration.FileStorageSettings>(

@@ -1,5 +1,7 @@
 namespace Domain.Models;
 
+using Domain.Enums;
+
 /// <summary>
 /// Junction entity: CandidateUser ↔ Skill (M:N). Composite PK (CandidateId, SkillId).
 /// </summary>
@@ -10,4 +12,6 @@ public class CandidateSkill
 
     public int SkillId { get; set; }
     public Skill Skill { get; set; } = null!;
+
+    public SkillLevel Level { get; set; } = SkillLevel.Beginner;
 }
