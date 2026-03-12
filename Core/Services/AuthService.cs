@@ -169,11 +169,14 @@ public class AuthService : IAuthService
         if (!Enum.TryParse<Gender>(request.Gender, true, out var gender))
             throw new BadRequestException("Invalid gender. Must be 'Male' or 'Female'");
 
-        // Validate company tax number uniqueness - must be checked after user creation to prevent orphaned records
-        // TOCTOU risk: Check and Create within a transaction
+        // VALIDATE COMPANY TAX NUMBER UNIQUENESS FIRST (before creating user to prevent orphaned records)
+        var existingCompany = await _unitOfWork.Companies.GetByTaxNumberAsync(request.TaxNumber);
+        if (existingCompany != null)
+            throw new BadRequestException("Company with this tax number already exists");
+
         await EnsureRolesExistAsync();
 
-        // Create Admin recruiter user FIRST (fails fast before company creation)
+        // Create Admin recruiter user
         var recruiter = new Recruiter
         {
             UserName = request.Email,
@@ -197,11 +200,6 @@ public class AuthService : IAuthService
 
         try
         {
-            // Now check for duplicate tax number within same transaction as company creation
-            var existingCompany = await _unitOfWork.Companies.GetByTaxNumberAsync(request.TaxNumber);
-            if (existingCompany != null)
-                throw new BadRequestException("Company with this tax number already exists");
-
             // Create company
             var company = new Company
             {
@@ -254,9 +252,12 @@ public class AuthService : IAuthService
         if (!Enum.TryParse<Gender>(request.Gender, true, out var gender))
             throw new BadRequestException("Invalid gender. Must be 'Male' or 'Female'");
 
+        // VALIDATE AND CONSUME INVITE CODE FIRST (before creating user to prevent orphaned records)
+        int companyId = await _inviteCodeService.ValidateAndUseAsync(request.InviteCode);
+
         await EnsureRolesExistAsync();
 
-        // Create Standard recruiter FIRST (fails fast before consuming invite code)
+        // Create Standard recruiter after invite validation succeeds
         var recruiter = new Recruiter
         {
             UserName = request.Email,
@@ -266,7 +267,7 @@ public class AuthService : IAuthService
             PhoneNumber = request.PhoneNumber,
             Gender = gender,
             DateOfBirth = request.DateOfBirth,
-            CompanyId = 0, // Will be set after invite code validation
+            CompanyId = companyId,
             RecruiterRole = UserRole.Standard, // Invited recruiter is Standard
             CreatedAt = DateTime.UtcNow
         };
@@ -278,31 +279,15 @@ public class AuthService : IAuthService
             throw new BadRequestException($"User creation failed: {errors}");
         }
 
-        try
+        var roleResult = await _userManager.AddToRoleAsync(recruiter, "Recruiter");
+        if (!roleResult.Succeeded)
         {
-            // Validate and consume invite code AFTER user creation succeeds
-            int companyId = await _inviteCodeService.ValidateAndUseAsync(request.InviteCode);
-
-            // Update recruiter with company ID
-            recruiter.CompanyId = companyId;
-            await _userManager.UpdateAsync(recruiter);
-
-            var roleResult = await _userManager.AddToRoleAsync(recruiter, "Recruiter");
-            if (!roleResult.Succeeded)
-            {
-                _logger.LogError("Failed to assign Recruiter role to user {Email}", recruiter.Email);
-            }
-
-            _logger.LogInformation("Standard recruiter {Email} registered for company {CompanyId} via invite code", recruiter.Email, companyId);
-
-            return BuildLoginResponse(recruiter, "Recruiter");
+            _logger.LogError("Failed to assign Recruiter role to user {Email}", recruiter.Email);
         }
-        catch
-        {
-            // If invite code validation fails, delete the recruiter user to prevent orphaned records
-            await _userManager.DeleteAsync(recruiter);
-            throw;
-        }
+
+        _logger.LogInformation("Standard recruiter {Email} registered for company {CompanyId} via invite code", recruiter.Email, companyId);
+
+        return BuildLoginResponse(recruiter, "Recruiter");
     }
 
     public Task LogoutAsync(string jti)
