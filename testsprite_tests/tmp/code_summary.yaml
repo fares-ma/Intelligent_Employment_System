@@ -1,0 +1,82 @@
+project_name: Intelligent Employment System
+project_type: backend
+framework: ASP.NET Core
+framework_version: "10"
+language: C#
+orm: Entity Framework Core
+database: SQL Server LocalDB
+
+tech_stack:
+  - name: ASP.NET Core
+    version: "10"
+    purpose: Web API Framework
+  - name: Entity Framework Core
+    version: "10"
+    purpose: ORM and Database
+  - name: Identity Framework
+    version: Latest
+    purpose: User Authentication and Management
+  - name: JWT
+    purpose: Token-based Authentication
+  - name: Dependency Injection
+    purpose: IoC Container
+
+architecture:
+  pattern: Clean Architecture (Onion)
+  layers:
+    - Core (Domain, Services, Services.Abstractions)
+    - Infrastructure (Persistence, Presentation)
+    - Shared (Common Utilities)
+    - API (IES.api WebAPI)
+
+main_features:
+  - Authentication (Register, Login, Logout, Password Reset)
+  - Authorization (Role-Based Access Control)
+  - Job Posting Management
+  - Job Application Management
+  - Interview Scheduling
+  - Candidate Profile Management
+  - Company Management
+  - Education and Experience Management
+  - Skills Management
+
+api_endpoints:
+  auth: 7
+  company: 4
+  candidates: 4
+  education: 5
+  experience: 5
+  skill: 6
+  jobposting: 8
+  jobapplication: 5
+  interview: 8
+  total: 52
+
+security_features:
+  - JWT Token Authentication (24h expiry)
+  - Role-Based Access Control (Candidate, Recruiter, Admin)
+  - Password Hashing with Salting
+  - Email Validation
+  - Password Complexity Requirements
+  - Ownership Validation
+
+database_features:
+  - Entity Framework Core Migrations
+  - SQL Server LocalDB
+  - Unit of Work Pattern
+  - Repository Pattern
+  - Foreign Key Constraints
+  - Proper Null Handling
+
+critical_fixes_applied:
+  - TOCTOU Race Condition on TaxNumber
+  - FK Constraint Violation on Recruiter.CompanyId
+  - Orphaned Records Prevention
+  - Role Assignment Failure Handling
+  - Comprehensive Exception Handling
+  - Pagination Ordering Fix
+
+build_status:
+  errors: 0
+  warnings: 0
+  last_commit: 5e00de2
