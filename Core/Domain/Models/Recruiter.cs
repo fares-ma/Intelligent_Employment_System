@@ -7,8 +7,11 @@ namespace Domain.Models;
 /// </summary>
 public class Recruiter : ApplicationUser
 {
-    public int CompanyId { get; set; }
-    public Company Company { get; set; } = null!;
+    /// <summary>
+    /// Foreign key to Company. Nullable during registration before company is created.
+    /// </summary>
+    public int? CompanyId { get; set; }
+    public Company? Company { get; set; }
 
     public UserRole RecruiterRole { get; set; } = UserRole.Standard;
 

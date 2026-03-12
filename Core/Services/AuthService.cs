@@ -186,7 +186,7 @@ public class AuthService : IAuthService
             PhoneNumber = request.PhoneNumber,
             Gender = gender,
             DateOfBirth = request.DateOfBirth,
-            CompanyId = 0, // Will be set after company creation
+            CompanyId = null, // Will be set after company creation succeeds
             RecruiterRole = UserRole.Admin, // First recruiter is always Admin
             CreatedAt = DateTime.UtcNow
         };
@@ -220,20 +220,38 @@ public class AuthService : IAuthService
             recruiter.CompanyId = company.Id;
             await _userManager.UpdateAsync(recruiter);
 
+            // Assign Admin role - FATAL if fails
             var roleResult = await _userManager.AddToRoleAsync(recruiter, "Admin");
             if (!roleResult.Succeeded)
             {
-                _logger.LogError("Failed to assign Admin role to recruiter {Email}", recruiter.Email);
+                var roleErrors = string.Join(", ", roleResult.Errors.Select(e => e.Description));
+                _logger.LogError("Failed to assign Admin role to recruiter {Email}. Errors: {Errors}", recruiter.Email, roleErrors);
+                throw new InvalidOperationException($"Failed to assign Admin role: {roleErrors}");
             }
 
             _logger.LogInformation("Admin recruiter {Email} created for company {CompanyId}", recruiter.Email, company.Id);
 
             return BuildLoginResponse(recruiter, "Admin");
         }
-        catch
+        catch (Exception ex)
         {
-            // If company creation fails, delete the recruiter user to prevent orphaned records
-            await _userManager.DeleteAsync(recruiter);
+            _logger.LogError(ex, "Error during company or role setup for recruiter {Email}", recruiter.Email);
+            
+            // Attempt cleanup
+            try
+            {
+                await _userManager.DeleteAsync(recruiter);
+                _logger.LogInformation("Cleaned up recruiter {Email} due to setup failure", recruiter.Email);
+            }
+            catch (Exception cleanupEx)
+            {
+                _logger.LogError(cleanupEx, "Cleanup failed when removing recruiter {Email} after registration failure", recruiter.Email);
+                throw new AggregateException(
+                    new Exception($"Registration setup failed: {ex.Message}", ex),
+                    new Exception($"Cleanup also failed: {cleanupEx.Message}", cleanupEx)
+                );
+            }
+            
             throw;
         }
     }
