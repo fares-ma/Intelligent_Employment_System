@@ -14,11 +14,13 @@ namespace Services;
 public class JobApplicationService : IJobApplicationService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly INotificationService _notificationService;
     private readonly ILogger<JobApplicationService> _logger;
 
-    public JobApplicationService(IUnitOfWork unitOfWork, ILogger<JobApplicationService> logger)
+    public JobApplicationService(IUnitOfWork unitOfWork, INotificationService notificationService, ILogger<JobApplicationService> logger)
     {
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
+        _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -64,6 +66,14 @@ public class JobApplicationService : IJobApplicationService
         await _unitOfWork.SaveChangesAsync();
 
         _logger.LogInformation("Job application created with ID {ApplicationId}", application.Id);
+
+        await _notificationService.SendNotificationAsync(
+            jobPost.CreatedByRecruiterId,
+            "NewApplication",
+            "New Job Application",
+            $"A new candidate has applied for {jobPost.Title}",
+            $"/jobs/{jobPost.Id}/applications");
+
         return MapToDto(application, candidate, jobPost);
     }
 

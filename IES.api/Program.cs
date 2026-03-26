@@ -151,6 +151,8 @@ namespace IES.api
             builder.Services.AddScoped<IJobPostingService, JobPostingService>();
             builder.Services.AddScoped<IJobApplicationService, JobApplicationService>();
             builder.Services.AddScoped<IInterviewService, InterviewService>();
+            builder.Services.AddScoped<INotificationService, NotificationService>();
+            builder.Services.AddScoped<IEmailService, EmailService>();
 
             // ── Configuration for FileStorage ──
             builder.Services.Configure<Shared.Configuration.FileStorageSettings>(
@@ -234,9 +236,7 @@ namespace IES.api
             app.MapControllers();
 
             // ── SignalR Hub endpoints ──
-            // Uncomment when hub classes are created:
-            // app.MapHub<Presentation.Hubs.InterviewHub>("/hubs/interview");
-            // app.MapHub<Presentation.Hubs.NotificationHub>("/hubs/notifications");
+            app.MapHub<Presentation.Hubs.NotificationHub>("/hubs/notifications");
 
             app.Run();
         }
