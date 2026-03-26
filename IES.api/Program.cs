@@ -151,6 +151,7 @@ namespace IES.api
             builder.Services.AddScoped<IJobPostingService, JobPostingService>();
             builder.Services.AddScoped<IJobApplicationService, JobApplicationService>();
             builder.Services.AddScoped<IInterviewService, InterviewService>();
+            builder.Services.AddScoped<IDashboardService, DashboardService>();
 
             // ── Configuration for FileStorage ──
             builder.Services.Configure<Shared.Configuration.FileStorageSettings>(
