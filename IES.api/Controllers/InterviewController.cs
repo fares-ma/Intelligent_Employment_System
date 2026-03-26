@@ -250,4 +250,134 @@ public class InterviewController : ControllerBase
             return StatusCode(500, new { message = "Internal server error" });
         }
     }
+
+    /// <summary>
+    /// Get AI-generated questions for an interview (Candidate)
+    /// </summary>
+    [HttpGet("{id}/ai-questions")]
+    [Authorize]
+    public async Task<ActionResult<AiInterviewQuestionsDto>> GetAiQuestions(int id)
+    {
+        try
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? throw new UnauthorizedAccessException("User identity not found");
+
+            var result = await _service.GetAiQuestionsAsync(id, userId);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("Error in GetAiQuestions: {Message}", ex.Message);
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("Authorization error in GetAiQuestions: {Message}", ex.Message);
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in GetAiQuestions");
+            return StatusCode(500, new { message = "Internal server error" });
+        }
+    }
+
+    /// <summary>
+    /// Submit written answers for AI interview (Candidate)
+    /// </summary>
+    [HttpPost("{id}/submit-ai")]
+    [Authorize]
+    public async Task<ActionResult<InterviewDto>> SubmitAiAnswers(int id, [FromBody] SubmitAiInterviewDto request)
+    {
+        try
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? throw new UnauthorizedAccessException("User identity not found");
+
+            request.InterviewId = id;
+            var result = await _service.SubmitAiAnswersAsync(id, userId, request);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("Error in SubmitAiAnswers: {Message}", ex.Message);
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("Authorization error in SubmitAiAnswers: {Message}", ex.Message);
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in SubmitAiAnswers");
+            return StatusCode(500, new { message = "Internal server error" });
+        }
+    }
+
+    /// <summary>
+    /// Create a live interview room (Recruiter)
+    /// </summary>
+    [HttpPost("{id}/join")]
+    [Authorize(Roles = "Recruiter,Admin")]
+    public async Task<ActionResult<InterviewDto>> CreateLiveRoom(int id)
+    {
+        try
+        {
+            var recruiterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? throw new UnauthorizedAccessException("User identity not found");
+
+            var result = await _service.CreateLiveRoomAsync(id, recruiterId);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("Error in CreateLiveRoom: {Message}", ex.Message);
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("Authorization error in CreateLiveRoom: {Message}", ex.Message);
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in CreateLiveRoom");
+            return StatusCode(500, new { message = "Internal server error" });
+        }
+    }
+
+    /// <summary>
+    /// Complete an interview with score and feedback (Recruiter)
+    /// </summary>
+    [HttpPatch("{id}/complete")]
+    [Authorize(Roles = "Recruiter,Admin")]
+    public async Task<ActionResult<InterviewDto>> CompleteInterview(int id, [FromBody] CompleteInterviewDto request)
+    {
+        try
+        {
+            var recruiterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? throw new UnauthorizedAccessException("User identity not found");
+
+            request.InterviewId = id;
+            var result = await _service.CompleteInterviewAsync(id, recruiterId, request);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("Error in CompleteInterview: {Message}", ex.Message);
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("Authorization error in CompleteInterview: {Message}", ex.Message);
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in CompleteInterview");
+            return StatusCode(500, new { message = "Internal server error" });
+        }
+    }
 }

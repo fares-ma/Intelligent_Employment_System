@@ -177,14 +177,14 @@ public class InterviewService : IInterviewService
         if (!string.IsNullOrWhiteSpace(request.MeetingLink))
             interview.MeetingLink = request.MeetingLink;
 
-        // For completed interviews, require score and transcript
+        // For completed interviews, require score
         if (newStatus == InterviewStatus.Completed)
         {
             if (!request.Score.HasValue || request.Score < 0 || request.Score > 100)
                 throw new ArgumentException("Score must be provided and between 0-100 for completed interviews");
 
             interview.Score = request.Score;
-            interview.AiTranscript = request.AiTranscript;
+            interview.AiAnswers = request.AiAnswers;
             interview.FeedbackNotes = request.FeedbackNotes;
             interview.CompletedAt = DateTime.UtcNow;
         }
@@ -265,7 +265,7 @@ public class InterviewService : IInterviewService
             DurationMinutes = interview.DurationMinutes,
             MeetingLink = interview.MeetingLink,
             AiQuestions = interview.AiQuestions,
-            AiTranscript = interview.AiTranscript,
+            AiAnswers = interview.AiAnswers,
             Score = interview.Score,
             FeedbackNotes = interview.FeedbackNotes,
             CompletedAt = interview.CompletedAt,
@@ -330,5 +330,97 @@ public class InterviewService : IInterviewService
 
         if (!allowedTransitions.Contains(newStatus))
             throw new ArgumentException($"Cannot transition from {currentStatus} to {newStatus}");
+    }
+
+    public async Task<AiInterviewQuestionsDto> GetAiQuestionsAsync(int interviewId, string userId)
+    {
+        var interview = await _unitOfWork.Interviews.GetByIdAsync(interviewId);
+        if (interview is null)
+            throw new ArgumentException("Interview not found");
+
+        if (interview.InterviewType != InterviewType.AI)
+            throw new ArgumentException("This is not an AI interview");
+
+        if (string.IsNullOrWhiteSpace(interview.AiQuestions))
+            throw new ArgumentException("No AI questions available for this interview");
+
+        return new AiInterviewQuestionsDto
+        {
+            InterviewId = interviewId,
+            Questions = interview.AiQuestions
+        };
+    }
+
+    public async Task<InterviewDto> SubmitAiAnswersAsync(int interviewId, string userId, SubmitAiInterviewDto request)
+    {
+        var interview = await _unitOfWork.Interviews.GetByIdAsync(interviewId);
+        if (interview is null)
+            throw new ArgumentException("Interview not found");
+
+        if (interview.InterviewType != InterviewType.AI)
+            throw new ArgumentException("This is not an AI interview");
+
+        var application = await _unitOfWork.JobApplications.GetByIdAsync(interview.JobApplicationId);
+        if (application is null || application.CandidateId != userId)
+            throw new UnauthorizedAccessException("You can only submit answers to your own interviews");
+
+        interview.AiAnswers = request.Answers;
+        interview.Status = InterviewStatus.Completed;
+        interview.CompletedAt = DateTime.UtcNow;
+
+        _unitOfWork.Interviews.Update(interview);
+        await _unitOfWork.SaveChangesAsync();
+
+        return await MapToDtoAsync(interview);
+    }
+
+    public async Task<InterviewDto> CreateLiveRoomAsync(int interviewId, string recruiterId)
+    {
+        var interview = await _unitOfWork.Interviews.GetByIdAsync(interviewId);
+        if (interview is null)
+            throw new ArgumentException("Interview not found");
+
+        if (interview.InterviewType != InterviewType.Live)
+            throw new ArgumentException("This is not a live interview");
+
+        var application = await _unitOfWork.JobApplications.GetByIdAsync(interview.JobApplicationId);
+        var jobPost = application is not null ? await _unitOfWork.JobPosts.GetByIdAsync(application.JobPostId) : null;
+
+        if (jobPost is null || jobPost.CreatedByRecruiterId != recruiterId)
+            throw new UnauthorizedAccessException("You don't have permission to create rooms for this interview");
+
+        var meetingLink = $"https://meet.example.com/interview/{Guid.NewGuid():N}";
+        interview.MeetingLink = meetingLink;
+
+        _unitOfWork.Interviews.Update(interview);
+        await _unitOfWork.SaveChangesAsync();
+
+        return await MapToDtoAsync(interview);
+    }
+
+    public async Task<InterviewDto> CompleteInterviewAsync(int interviewId, string recruiterId, CompleteInterviewDto request)
+    {
+        var interview = await _unitOfWork.Interviews.GetByIdAsync(interviewId);
+        if (interview is null)
+            throw new ArgumentException("Interview not found");
+
+        var application = await _unitOfWork.JobApplications.GetByIdAsync(interview.JobApplicationId);
+        var jobPost = application is not null ? await _unitOfWork.JobPosts.GetByIdAsync(application.JobPostId) : null;
+
+        if (jobPost is null || jobPost.CreatedByRecruiterId != recruiterId)
+            throw new UnauthorizedAccessException("You don't have permission to complete this interview");
+
+        if (request.Score.HasValue && (request.Score < 0 || request.Score > 100))
+            throw new ArgumentException("Score must be between 0 and 100");
+
+        interview.Score = request.Score;
+        interview.FeedbackNotes = request.FeedbackNotes;
+        interview.Status = InterviewStatus.Completed;
+        interview.CompletedAt = DateTime.UtcNow;
+
+        _unitOfWork.Interviews.Update(interview);
+        await _unitOfWork.SaveChangesAsync();
+
+        return await MapToDtoAsync(interview);
     }
 }

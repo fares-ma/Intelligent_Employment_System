@@ -61,9 +61,9 @@ public class InterviewDto
     public string? AiQuestions { get; set; }
 
     /// <summary>
-    /// Interview transcript (from AI or manual notes)
+    /// Candidate's written answers (JSON format, for AI interviews)
     /// </summary>
-    public string? AiTranscript { get; set; }
+    public string? AiAnswers { get; set; }
 
     /// <summary>
     /// Interview score (0-100)

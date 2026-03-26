@@ -1,4 +1,5 @@
 using Services.Abstractions.DTOs.Interview;
+using Shared.Pagination;
 
 namespace Services.Abstractions;
 
@@ -46,4 +47,24 @@ public interface IInterviewService
     /// Get interviews by status (Scheduled, InProgress, Completed, Cancelled)
     /// </summary>
     Task<IEnumerable<InterviewDto>> GetInterviewsByStatusAsync(string status, int pageNumber = 1, int pageSize = 20);
+
+    /// <summary>
+    /// Get AI-generated questions for an interview
+    /// </summary>
+    Task<AiInterviewQuestionsDto> GetAiQuestionsAsync(int interviewId, string userId);
+
+    /// <summary>
+    /// Submit written answers for AI interview
+    /// </summary>
+    Task<InterviewDto> SubmitAiAnswersAsync(int interviewId, string userId, SubmitAiInterviewDto request);
+
+    /// <summary>
+    /// Create a live interview room (via third-party WebRTC provider)
+    /// </summary>
+    Task<InterviewDto> CreateLiveRoomAsync(int interviewId, string recruiterId);
+
+    /// <summary>
+    /// Complete an interview (set score and feedback)
+    /// </summary>
+    Task<InterviewDto> CompleteInterviewAsync(int interviewId, string recruiterId, CompleteInterviewDto request);
 }

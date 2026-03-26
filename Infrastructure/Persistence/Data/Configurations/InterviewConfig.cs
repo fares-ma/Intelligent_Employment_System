@@ -22,7 +22,16 @@ public class InterviewConfig : IEntityTypeConfiguration<Interview>
             .HasConversion<int>();
 
         builder.Property(i => i.DurationMinutes)
-            .HasDefaultValue(60);
+            .HasDefaultValue(30);
+
+        builder.Property(i => i.AiAnswers)
+            .HasMaxLength(10000);
+
+        builder.Property(i => i.AiQuestions)
+            .HasMaxLength(5000);
+
+        builder.Property(i => i.MeetingLink)
+            .HasMaxLength(500);
 
         builder.Property(i => i.Score)
             .HasPrecision(5, 2);

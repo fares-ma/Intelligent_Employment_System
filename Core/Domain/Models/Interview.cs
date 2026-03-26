@@ -28,9 +28,9 @@ public class Interview
     public string? AiQuestions { get; set; }
 
     /// <summary>
-    /// AI interview transcript.
+    /// JSON — Candidate's written answers.
     /// </summary>
-    public string? AiTranscript { get; set; }
+    public string? AiAnswers { get; set; }
 
     public decimal? Score { get; set; }
 

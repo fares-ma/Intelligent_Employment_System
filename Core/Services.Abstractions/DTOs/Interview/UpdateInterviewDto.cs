@@ -11,9 +11,9 @@ public class UpdateInterviewDto
     public string Status { get; set; } = string.Empty;
 
     /// <summary>
-    /// Interview transcript or notes (optional, for completed interviews)
+    /// Candidate's written answers (optional, for completed AI interviews)
     /// </summary>
-    public string? AiTranscript { get; set; }
+    public string? AiAnswers { get; set; }
 
     /// <summary>
     /// Interview score 0-100 (optional, for completed interviews)
