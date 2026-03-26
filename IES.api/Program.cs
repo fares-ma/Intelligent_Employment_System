@@ -128,6 +128,10 @@ namespace IES.api
             // ── SignalR ──
             builder.Services.AddSignalR();
 
+            // ── Background Services ──
+            builder.Services.AddHostedService<Services.Background.JobExpiryBackgroundService>();
+            builder.Services.AddHostedService<Services.Background.AiScoringRetryService>();
+
             // ── Repository & UnitOfWork DI ──
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<ICandidateRepository, CandidateRepository>();
