@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Services.Abstractions;
 using Services.Abstractions.DTOs.JobPosting;
+using Services.Abstractions.DTOs.JobApplication;
 using System.Security.Claims;
 
 namespace IES.api.Controllers;
@@ -13,11 +14,13 @@ namespace IES.api.Controllers;
 public class JobPostingController : ControllerBase
 {
     private readonly IJobPostingService _jobPostingService;
+    private readonly IJobApplicationService _jobApplicationService;
     private readonly ILogger<JobPostingController> _logger;
 
-    public JobPostingController(IJobPostingService jobPostingService, ILogger<JobPostingController> logger)
+    public JobPostingController(IJobPostingService jobPostingService, IJobApplicationService jobApplicationService, ILogger<JobPostingController> logger)
     {
         _jobPostingService = jobPostingService ?? throw new ArgumentNullException(nameof(jobPostingService));
+        _jobApplicationService = jobApplicationService ?? throw new ArgumentNullException(nameof(jobApplicationService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -283,6 +286,113 @@ public class JobPostingController : ControllerBase
         {
             _logger.LogError(ex, "Error getting job postings by type");
             return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Get applicants for a job (recruiter only).
+    /// </summary>
+    [HttpGet("{jobId}/applicants")]
+    [ProducesResponseType(typeof(Shared.Pagination.PagedResult<ApplicantDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetJobApplicants(int jobId, [FromQuery] ApplicantFilterParams filterParams)
+    {
+        try
+        {
+            var recruiterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(recruiterId)) return Unauthorized();
+
+            var applicants = await _jobApplicationService.GetApplicantsAsync(jobId, recruiterId, filterParams);
+            return Ok(applicants);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Change application status pipeline (recruiter only).
+    /// </summary>
+    [HttpPatch("{jobId}/applicants/{applicationId}/status")]
+    public async Task<IActionResult> ChangeApplicationStatus(int jobId, int applicationId, [FromBody] StatusChangeDto request)
+    {
+        try
+        {
+            var recruiterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(recruiterId)) return Unauthorized();
+
+            var statusStr = ((Domain.Enums.ApplicationStatus)request.NewStatus).ToString();
+            
+            var updateDto = new UpdateJobApplicationDto 
+            { 
+                Status = statusStr 
+            };
+            
+            var result = await _jobApplicationService.UpdateApplicationStatusAsync(applicationId, recruiterId, updateDto);
+            return Ok(new { applicationId = result.Id, newStatus = request.NewStatus });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Set recruiter rating on an application (recruiter only).
+    /// </summary>
+    [HttpPatch("{jobId}/applicants/{applicationId}/rating")]
+    public async Task<IActionResult> SetApplicationRating(int jobId, int applicationId, [FromBody] RatingDto request)
+    {
+        try
+        {
+            var recruiterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(recruiterId)) return Unauthorized();
+
+            var result = await _jobApplicationService.SetRatingAsync(applicationId, recruiterId, request);
+            return Ok(new { applicationId = result.ApplicationId, rating = request.Rating });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Export applicants list as CSV (recruiter only).
+    /// </summary>
+    [HttpGet("{jobId}/applicants/export")]
+    public async Task<IActionResult> ExportApplicantsCsv(int jobId)
+    {
+        try
+        {
+            var recruiterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(recruiterId)) return Unauthorized();
+
+            var csvBytes = await _jobApplicationService.ExportApplicantsCsvAsync(jobId, recruiterId);
+            return File(csvBytes, "text/csv", $"applicants_job_{jobId}.csv");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(ex.Message);
         }
     }
 }

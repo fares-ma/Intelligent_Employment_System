@@ -1,3 +1,4 @@
+using CsvHelper;
 using Domain.Contracts;
 using Domain.Enums;
 using Domain.Models;
@@ -5,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Services.Abstractions;
 using Services.Abstractions.DTOs.JobApplication;
 using Shared.Pagination;
+using System.Globalization;
 
 namespace Services;
 
@@ -144,6 +146,25 @@ public class JobApplicationService : IJobApplicationService
         if (!Enum.TryParse<ApplicationStatus>(request.Status, true, out var status))
             throw new ArgumentException("Invalid status value");
 
+        // Pipeline validation
+        var oldStatus = application.Status;
+        if (oldStatus == ApplicationStatus.Withdrawn || oldStatus == ApplicationStatus.Accepted || oldStatus == ApplicationStatus.Rejected)
+            throw new ArgumentException($"Cannot modify application that is already in terminal state: {oldStatus}");
+
+        if (status != ApplicationStatus.Rejected && status != ApplicationStatus.Withdrawn)
+        {
+            if (oldStatus == ApplicationStatus.Pending && status != ApplicationStatus.UnderReview)
+                throw new ArgumentException("Invalid transition: Must move from Pending to UnderReview");
+            if (oldStatus == ApplicationStatus.UnderReview && status != ApplicationStatus.Assessment)
+                throw new ArgumentException("Invalid transition: Must move from UnderReview to Assessment");
+            if (oldStatus == ApplicationStatus.Assessment && status != ApplicationStatus.Interview)
+                throw new ArgumentException("Invalid transition: Must move from Assessment to Interview");
+            if (oldStatus == ApplicationStatus.Interview && status != ApplicationStatus.Accepted)
+                throw new ArgumentException("Invalid transition: Must move from Interview to Accepted");
+            if (status == ApplicationStatus.Pending)
+                throw new ArgumentException("Invalid transition: Cannot move backward to Pending");
+        }
+
         application.Status = status;
         application.UpdatedAt = DateTime.UtcNow;
 
@@ -210,6 +231,147 @@ public class JobApplicationService : IJobApplicationService
         }
 
         return result;
+    }
+
+    public async Task<PagedResult<ApplicantDto>> GetApplicantsAsync(int jobPostId, string recruiterId, ApplicantFilterParams filterParams)
+    {
+        _logger.LogInformation("Retrieving applicants for job {JobPostId} with filters", jobPostId);
+        ValidatePagination(filterParams.PageNumber, filterParams.PageSize);
+
+        var jobPost = await _unitOfWork.JobPosts.GetByIdAsync(jobPostId);
+        if (jobPost is null)
+            throw new ArgumentException("Job posting not found");
+
+        if (jobPost.CreatedByRecruiterId != recruiterId)
+            throw new UnauthorizedAccessException("Not authorized for this job");
+
+        ApplicationStatus? filterStatus = null;
+        if (filterParams.Status.HasValue && Enum.IsDefined(typeof(ApplicationStatus), filterParams.Status.Value))
+        {
+            filterStatus = (ApplicationStatus)filterParams.Status.Value;
+        }
+
+        var applications = await _unitOfWork.JobApplications.FindAsync(app => app.JobPostId == jobPostId);
+        
+        // Filter
+        var query = applications.AsQueryable();
+        if (filterStatus.HasValue)
+            query = query.Where(a => a.Status == filterStatus.Value);
+        if (filterParams.MinScore.HasValue)
+            query = query.Where(a => a.MatchScore >= filterParams.MinScore.Value);
+
+        // Sort
+        query = (filterParams.SortBy?.ToLower()) switch
+        {
+            "matchscore" => filterParams.SortOrder?.ToLower() == "asc" ? query.OrderBy(a => a.MatchScore) : query.OrderByDescending(a => a.MatchScore),
+            "appliedat" => filterParams.SortOrder?.ToLower() == "asc" ? query.OrderBy(a => a.AppliedAt) : query.OrderByDescending(a => a.AppliedAt),
+            "rating" => filterParams.SortOrder?.ToLower() == "asc" ? query.OrderBy(a => a.RecruiterRating) : query.OrderByDescending(a => a.RecruiterRating),
+            _ => query.OrderByDescending(a => a.MatchScore)
+        };
+
+        var totalCount = query.Count();
+        var items = query.Skip((filterParams.PageNumber - 1) * filterParams.PageSize).Take(filterParams.PageSize).ToList();
+
+        var applicantDtos = new List<ApplicantDto>();
+        foreach (var app in items)
+        {
+            var candidate = await _unitOfWork.Candidates.GetByIdAsync(app.CandidateId);
+            applicantDtos.Add(new ApplicantDto
+            {
+                ApplicationId = app.Id,
+                Candidate = new ApplicantCandidateDto
+                {
+                    Id = candidate!.Id,
+                    FirstName = candidate.FirstName,
+                    LastName = candidate.LastName,
+                    Email = candidate.Email ?? string.Empty,
+                    JobTitle = candidate.JobTitle,
+                    YearsOfExperience = candidate.YearsOfExperience
+                },
+                Status = (int)app.Status,
+                MatchScore = app.MatchScore,
+                MatchReport = app.MatchReport,
+                RecruiterRating = app.RecruiterRating,
+                AppliedAt = app.AppliedAt,
+                UpdatedAt = app.UpdatedAt
+            });
+        }
+
+        return new PagedResult<ApplicantDto>(applicantDtos, totalCount, filterParams.PageNumber, filterParams.PageSize);
+    }
+
+    public async Task<ApplicantDto> SetRatingAsync(int applicationId, string recruiterId, RatingDto request)
+    {
+        var application = await _unitOfWork.JobApplications.GetByIdAsync(applicationId);
+        if (application is null) throw new ArgumentException("Application not found");
+
+        var jobPost = await _unitOfWork.JobPosts.GetByIdAsync(application.JobPostId);
+        if (jobPost is null || jobPost.CreatedByRecruiterId != recruiterId)
+            throw new UnauthorizedAccessException("Not authorized for this application");
+
+        application.RecruiterRating = request.Rating;
+        application.UpdatedAt = DateTime.UtcNow;
+        _unitOfWork.JobApplications.Update(application);
+        await _unitOfWork.SaveChangesAsync();
+
+        var candidate = await _unitOfWork.Candidates.GetByIdAsync(application.CandidateId);
+        return new ApplicantDto
+        {
+            ApplicationId = application.Id,
+            Candidate = new ApplicantCandidateDto
+            {
+                Id = candidate!.Id,
+                FirstName = candidate.FirstName,
+                LastName = candidate.LastName,
+                Email = candidate.Email ?? string.Empty,
+                JobTitle = candidate.JobTitle,
+                YearsOfExperience = candidate.YearsOfExperience
+            },
+            Status = (int)application.Status,
+            MatchScore = application.MatchScore,
+            MatchReport = application.MatchReport,
+            RecruiterRating = application.RecruiterRating,
+            AppliedAt = application.AppliedAt,
+            UpdatedAt = application.UpdatedAt
+        };
+    }
+
+    public async Task<byte[]> ExportApplicantsCsvAsync(int jobPostId, string recruiterId)
+    {
+        var jobPost = await _unitOfWork.JobPosts.GetByIdAsync(jobPostId);
+        if (jobPost is null || jobPost.CreatedByRecruiterId != recruiterId)
+            throw new UnauthorizedAccessException("Not authorized for this job");
+
+        var applications = await _unitOfWork.JobApplications.FindAsync(a => a.JobPostId == jobPostId);
+        
+        using var memoryStream = new MemoryStream();
+        using var streamWriter = new StreamWriter(memoryStream);
+        using var csv = new CsvWriter(streamWriter, CultureInfo.InvariantCulture);
+
+        csv.WriteField("Candidate Name");
+        csv.WriteField("Email");
+        csv.WriteField("Job Title");
+        csv.WriteField("Applied Date");
+        csv.WriteField("Status");
+        csv.WriteField("Rating");
+        csv.WriteField("Match Score");
+        csv.NextRecord();
+
+        foreach (var app in applications.OrderByDescending(a => a.AppliedAt))
+        {
+            var cand = await _unitOfWork.Candidates.GetByIdAsync(app.CandidateId);
+            csv.WriteField(cand != null ? $"{cand.FirstName} {cand.LastName}" : "Unknown");
+            csv.WriteField(cand?.Email ?? "N/A");
+            csv.WriteField(cand?.JobTitle ?? "N/A");
+            csv.WriteField(app.AppliedAt.ToString("yyyy-MM-dd"));
+            csv.WriteField(app.Status.ToString());
+            csv.WriteField(app.RecruiterRating?.ToString() ?? "N/A");
+            csv.WriteField(app.MatchScore?.ToString() ?? "N/A");
+            csv.NextRecord();
+        }
+
+        await streamWriter.FlushAsync();
+        return memoryStream.ToArray();
     }
 
     private static JobApplicationDto MapToDto(JobApplication application, CandidateUser? candidate, JobPost? jobPost)

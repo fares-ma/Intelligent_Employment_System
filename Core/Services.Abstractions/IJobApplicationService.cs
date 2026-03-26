@@ -46,4 +46,19 @@ public interface IJobApplicationService
     /// Get applications with specific status for a job posting
     /// </summary>
     Task<IEnumerable<JobApplicationDto>> GetApplicationsByStatusAsync(int jobPostId, string status, int pageNumber = 1, int pageSize = 20);
+
+    /// <summary>
+    /// Get paginated/filtered applicants for a job (recruiter view)
+    /// </summary>
+    Task<Shared.Pagination.PagedResult<ApplicantDto>> GetApplicantsAsync(int jobPostId, string recruiterId, ApplicantFilterParams filterParams);
+
+    /// <summary>
+    /// Set a recruiter rating on an application
+    /// </summary>
+    Task<ApplicantDto> SetRatingAsync(int applicationId, string recruiterId, RatingDto request);
+
+    /// <summary>
+    /// Export applicants list as CSV byte array
+    /// </summary>
+    Task<byte[]> ExportApplicantsCsvAsync(int jobPostId, string recruiterId);
 }

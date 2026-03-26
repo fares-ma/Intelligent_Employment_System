@@ -15,4 +15,9 @@ public class JobPostSkill
     /// Whether this skill is required or nice-to-have.
     /// </summary>
     public bool IsRequired { get; set; } = true;
+
+    /// <summary>
+    /// The required proficiency level for this skill. Null means any level is acceptable.
+    /// </summary>
+    public Domain.Enums.SkillLevel? RequiredLevel { get; set; }
 }

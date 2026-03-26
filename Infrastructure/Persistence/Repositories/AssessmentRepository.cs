@@ -25,4 +25,36 @@ public class AssessmentRepository : RepositoryBase<Assessment>, IAssessmentRepos
             .AsNoTracking()
             .ToListAsync(cancellationToken);
     }
+
+    public async Task AddAttemptAsync(CandidateAssessment attempt, CancellationToken cancellationToken = default)
+    {
+        await _context.Set<CandidateAssessment>().AddAsync(attempt, cancellationToken);
+    }
+
+    public async Task<CandidateAssessment?> GetAttemptAsync(int attemptId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Set<CandidateAssessment>()
+            .Include(ca => ca.Candidate)
+            .FirstOrDefaultAsync(ca => ca.Id == attemptId, cancellationToken);
+    }
+
+    public async Task<CandidateAssessment?> GetAttemptByCandidateAndAssessmentAsync(string candidateId, int assessmentId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Set<CandidateAssessment>()
+            .FirstOrDefaultAsync(ca => ca.CandidateId == candidateId && ca.AssessmentId == assessmentId, cancellationToken);
+    }
+
+    public void UpdateAttempt(CandidateAssessment attempt)
+    {
+        _context.Set<CandidateAssessment>().Update(attempt);
+    }
+
+    public async Task<IEnumerable<CandidateAssessment>> GetAttemptsByAssessmentAsync(int assessmentId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Set<CandidateAssessment>()
+            .Include(ca => ca.Candidate)
+            .Where(ca => ca.AssessmentId == assessmentId)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
+    }
 }

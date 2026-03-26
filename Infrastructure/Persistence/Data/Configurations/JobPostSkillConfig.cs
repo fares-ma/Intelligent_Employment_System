@@ -10,6 +10,15 @@ public class JobPostSkillConfig : IEntityTypeConfiguration<JobPostSkill>
     {
         builder.HasKey(jps => new { jps.JobPostId, jps.SkillId });
 
+        // Properties
+        builder.Property(jps => jps.IsRequired)
+            .IsRequired()
+            .HasDefaultValue(true);
+
+        builder.Property(jps => jps.RequiredLevel)
+            .HasConversion<int>()
+            .IsRequired(false);
+
         builder.HasOne(jps => jps.JobPost)
             .WithMany(j => j.JobPostSkills)
             .HasForeignKey(jps => jps.JobPostId)
