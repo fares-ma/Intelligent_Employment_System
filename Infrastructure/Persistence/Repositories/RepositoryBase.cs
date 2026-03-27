@@ -33,7 +33,10 @@ public class RepositoryBase<T> : IRepositoryBase<T> where T : class
     {
         return await _dbSet.AsNoTracking().Where(predicate).ToListAsync(cancellationToken);
     }
-
+    public async Task<int> CountAsync(Expression<Func<T, bool>> predicate, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet.CountAsync(predicate, cancellationToken);
+    }
     public void Create(T entity) => _dbSet.Add(entity);
 
     public void Update(T entity) => _dbSet.Update(entity);

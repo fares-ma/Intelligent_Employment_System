@@ -57,4 +57,12 @@ public interface IAuthService
     /// <param name="userId">Currently authenticated user ID</param>
     /// <param name="request">Current password and new password</param>
     Task ChangePasswordAsync(string userId, ChangePasswordDto request);
+
+    /// <summary>
+    /// Checks if a user belongs to a specific company
+    /// </summary>
+    /// <param name="userId">The user ID</param>
+    /// <param name="companyId">The company ID</param>
+    /// <returns>True if the user is a recruiter for the company, false otherwise</returns>
+    Task<bool> UserBelongsToCompanyAsync(string userId, int companyId);
 }

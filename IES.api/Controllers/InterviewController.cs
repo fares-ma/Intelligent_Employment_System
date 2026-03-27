@@ -149,6 +149,7 @@ public class InterviewController : ControllerBase
     [Authorize(Roles = "Recruiter,Admin")]
     [ProducesResponseType(typeof(IEnumerable<InterviewDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<IEnumerable<InterviewDto>>> GetRecruiterInterviews(
         [FromQuery] int pageNumber = 1,
@@ -161,6 +162,11 @@ public class InterviewController : ControllerBase
 
             var result = await _service.GetRecruiterInterviewsAsync(recruiterId, pageNumber, pageSize);
             return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("Access forbidden in GetRecruiterInterviews: {Message}", ex.Message);
+            return Forbid();
         }
         catch (ArgumentException ex)
         {

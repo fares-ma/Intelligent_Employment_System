@@ -29,7 +29,8 @@ public class NotificationService : INotificationService
 
     public async Task SendNotificationAsync(string userId, string title, string message, string type, string? targetUrl = null)
     {
-        var user = await _unitOfWork.Candidates.GetByIdAsync(userId); // Simple check
+        var user = await _unitOfWork.Candidates.GetByIdAsync(userId);
+        if (user == null) return;
 
         var notification = new Notification
         {

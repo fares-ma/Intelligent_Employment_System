@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using System.Net;
 using System.Net.Http.Json;
 using Services.Abstractions.DTOs.Auth;
-using Microsoft.VisualStudio.TestPlatform.TestHost;
+using IES.api;
 
 namespace IES.IntegrationTests;
 

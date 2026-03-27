@@ -33,8 +33,16 @@ public class AiController : ControllerBase
     public async Task<ActionResult<List<string>>> ExtractSkills([FromBody] ExtractSkillsRequestDto request)
     {
         _logger.LogInformation("Extracting skills from job description");
-        var skills = await _aiServiceClient.ExtractSkillsAsync(request.JobDescription);
-        return Ok(skills);
+        try
+        {
+            var skills = await _aiServiceClient.ExtractSkillsAsync(request.JobDescription);
+            return Ok(skills);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to extract skills");
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "AI service unavailable");
+        }
     }
 
     /// <summary>
@@ -49,13 +57,21 @@ public class AiController : ControllerBase
     public async Task<ActionResult<AnalyzeResumeResponseDto>> AnalyzeResume([FromBody] AnalyzeResumeRequestDto request)
     {
         _logger.LogInformation("Analyzing resume against job description");
-        var (score, report) = await _aiServiceClient.ScoreResumeAsync(request.ResumeText, request.JobDescription);
-        
-        return Ok(new AnalyzeResumeResponseDto 
-        { 
-            Score = score, 
-            Report = report 
-        });
+        try
+        {
+            var (score, report) = await _aiServiceClient.ScoreResumeAsync(request.ResumeText, request.JobDescription);
+            
+            return Ok(new AnalyzeResumeResponseDto 
+            { 
+                Score = score, 
+                Report = report 
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to analyze resume");
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "AI service unavailable");
+        }
     }
 
     /// <summary>
@@ -69,9 +85,19 @@ public class AiController : ControllerBase
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<string>> GenerateCv([FromBody] GenerateCvRequestDto request)
     {
-        _logger.LogInformation("Generating CV for candidate: {CandidateName}", request.CandidateName);
-        var cvText = await _aiServiceClient.GenerateCvAsync(request.ResumeText, request.CandidateName);
-        return Ok(cvText);
+        var candidateId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        _logger.LogInformation("Generating CV for candidate: {CandidateId}", candidateId);
+        
+        try
+        {
+            var cvText = await _aiServiceClient.GenerateCvAsync(request.ResumeText, request.CandidateName);
+            return Ok(cvText);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate CV");
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "AI service unavailable");
+        }
     }
 
     /// <summary>
@@ -86,7 +112,15 @@ public class AiController : ControllerBase
     public async Task<ActionResult<List<string>>> GenerateAssessment([FromBody] GenerateAssessmentRequestDto request)
     {
         _logger.LogInformation("Generating {Count} assessment questions from job description", request.QuestionCount);
-        var questions = await _aiServiceClient.GenerateAssessmentAsync(request.JobDescription, request.QuestionCount);
-        return Ok(questions);
+        try
+        {
+            var questions = await _aiServiceClient.GenerateAssessmentAsync(request.JobDescription, request.QuestionCount);
+            return Ok(questions);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate assessment questions");
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "AI service unavailable");
+        }
     }
 }

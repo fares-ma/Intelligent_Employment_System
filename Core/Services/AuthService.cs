@@ -361,6 +361,16 @@ public class AuthService : IAuthService
         }
     }
 
+    public async Task<bool> UserBelongsToCompanyAsync(string userId, int companyId)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is Domain.Models.Recruiter recruiter)
+        {
+            return recruiter.CompanyId == companyId;
+        }
+        return false;
+    }
+
     // ── Private helpers ──────────────────────────────────────────────
 
     /// <summary>

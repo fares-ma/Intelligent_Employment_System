@@ -163,7 +163,10 @@ public class JobApplicationController : ControllerBase
             }).ToList();
 
             await csvWriter.WriteRecordsAsync(exportData);
+            await csvWriter.FlushAsync();
             await streamWriter.FlushAsync();
+            
+            memoryStream.Position = 0;
 
             return File(memoryStream.ToArray(), "text/csv", $"job-{jobPostId}-applications.csv");
         }

@@ -103,5 +103,7 @@ public class AuthServiceTests
         Assert.NotNull(result);
         Assert.Equal("new@test.com", result.Email);
         Assert.Equal("Candidate", result.Role);
+        Assert.NotNull(result.Token);
+        Assert.False(string.IsNullOrWhiteSpace(result.Token));
     }
 }

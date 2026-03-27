@@ -21,13 +21,21 @@ public class NotificationsController : ControllerBase
         _notificationService = notificationService;
     }
 
+    private string GetUserId()
+    {
+        var claim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (claim == null || string.IsNullOrEmpty(claim.Value))
+            throw new UnauthorizedAccessException("User identifier not found.");
+        return claim.Value;
+    }
+
     [HttpGet]
     [ProducesResponseType(typeof(Shared.Pagination.PagedResult<NotificationDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<Shared.Pagination.PagedResult<NotificationDto>>> GetMyNotifications(
         [FromQuery] PaginationParams pagination,
         [FromQuery] bool? isRead)
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value!;
+        var userId = GetUserId();
         var result = await _notificationService.GetUserNotificationsAsync(userId, pagination, isRead);
         return Ok(result);
     }
@@ -36,7 +44,7 @@ public class NotificationsController : ControllerBase
     [ProducesResponseType(typeof(UnreadCountDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<UnreadCountDto>> GetUnreadCount()
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value!;
+        var userId = GetUserId();
         var count = await _notificationService.GetUnreadCountAsync(userId);
         return Ok(new UnreadCountDto { Count = count });
     }
@@ -45,7 +53,7 @@ public class NotificationsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<ActionResult> MarkAsRead(int id)
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value!;
+        var userId = GetUserId();
         await _notificationService.MarkAsReadAsync(id, userId);
         return NoContent();
     }
