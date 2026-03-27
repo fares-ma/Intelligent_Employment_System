@@ -1,0 +1,24 @@
+﻿  Determining projects to restore...
+C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\Core\Services\Services.csproj : warning NU1903: Package 'AutoMapper' 13.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x [C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\Intelligent_Employment_System.slnx]
+C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\IES.api\IES.api.csproj : warning NU1903: Package 'AutoMapper' 13.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x [C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\Intelligent_Employment_System.slnx]
+  All projects are up-to-date for restore.
+C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\Core\Services\Services.csproj : warning NU1903: Package 'AutoMapper' 13.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x
+  Shared -> C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\Shared\bin\Debug\net10.0\Shared.dll
+  Domain -> C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\Core\Domain\bin\Debug\net10.0\Domain.dll
+  Services.Abstractions -> C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\Core\Services.Abstractions\bin\Debug\net10.0\Services.Abstractions.dll
+C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\IES.api\IES.api.csproj : warning NU1903: Package 'AutoMapper' 13.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x
+  Services -> C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\Core\Services\bin\Debug\net10.0\Services.dll
+  Persistence -> C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\Infrastructure\Persistence\bin\Debug\net10.0\Persistence.dll
+  Presentation -> C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\Infrastructure\Presentation\bin\Debug\net10.0\Presentation.dll
+  IES.api -> C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\IES.api\bin\Debug\net10.0\IES.api.dll
+
+Build succeeded.
+
+C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\Core\Services\Services.csproj : warning NU1903: Package 'AutoMapper' 13.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x [C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\Intelligent_Employment_System.slnx]
+C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\IES.api\IES.api.csproj : warning NU1903: Package 'AutoMapper' 13.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x [C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\Intelligent_Employment_System.slnx]
+C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\Core\Services\Services.csproj : warning NU1903: Package 'AutoMapper' 13.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x
+C:\Users\Rocket\Desktop\Employment System\Intelligent_Employment_System\IES.api\IES.api.csproj : warning NU1903: Package 'AutoMapper' 13.0.1 has a known high severity vulnerability, https://github.com/advisories/GHSA-rvv3-g6hj-g44x
+    4 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:02.03

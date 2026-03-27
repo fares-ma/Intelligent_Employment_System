@@ -19,5 +19,6 @@ public interface IUnitOfWork : IDisposable
     ICompanyInviteCodeRepository CompanyInviteCodes { get; }
     ICandidateEducationRepository CandidateEducations { get; }
     ICandidateExperienceRepository CandidateExperiences { get; }
+    ICandidateAssessmentRepository CandidateAssessments { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -28,6 +28,10 @@ public class InterviewController : ControllerBase
     /// </summary>
     [HttpPost("schedule")]
     [Authorize(Roles = "Recruiter,Admin")]
+    [ProducesResponseType(typeof(InterviewDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<InterviewDto>> ScheduleInterview([FromBody] CreateInterviewDto request)
     {
         try
@@ -59,6 +63,9 @@ public class InterviewController : ControllerBase
     /// Get interview details by ID
     /// </summary>
     [HttpGet("{id}")]
+    [ProducesResponseType(typeof(InterviewDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<InterviewDto>> GetInterview(int id)
     {
         try
@@ -82,6 +89,8 @@ public class InterviewController : ControllerBase
     /// Get all interviews for a job application
     /// </summary>
     [HttpGet("application/{applicationId}")]
+    [ProducesResponseType(typeof(IEnumerable<InterviewDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<IEnumerable<InterviewDto>>> GetApplicationInterviews(int applicationId)
     {
         try
@@ -100,6 +109,10 @@ public class InterviewController : ControllerBase
     /// Get all interviews for a candidate
     /// </summary>
     [HttpGet("candidate/{candidateId}")]
+    [ProducesResponseType(typeof(IEnumerable<InterviewDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<IEnumerable<InterviewDto>>> GetCandidateInterviews(
         string candidateId,
         [FromQuery] int pageNumber = 1,
@@ -134,6 +147,9 @@ public class InterviewController : ControllerBase
     /// </summary>
     [HttpGet("recruiter/interviews")]
     [Authorize(Roles = "Recruiter,Admin")]
+    [ProducesResponseType(typeof(IEnumerable<InterviewDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<IEnumerable<InterviewDto>>> GetRecruiterInterviews(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 20)
@@ -163,6 +179,9 @@ public class InterviewController : ControllerBase
     /// </summary>
     [HttpGet("status/{status}")]
     [Authorize(Roles = "Recruiter,Admin")]
+    [ProducesResponseType(typeof(IEnumerable<InterviewDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<IEnumerable<InterviewDto>>> GetInterviewsByStatus(
         string status,
         [FromQuery] int pageNumber = 1,
@@ -190,6 +209,10 @@ public class InterviewController : ControllerBase
     /// </summary>
     [HttpPut("{id}")]
     [Authorize(Roles = "Recruiter,Admin")]
+    [ProducesResponseType(typeof(InterviewDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<InterviewDto>> UpdateInterview(
         int id,
         [FromBody] UpdateInterviewDto request)
@@ -224,6 +247,10 @@ public class InterviewController : ControllerBase
     /// </summary>
     [HttpDelete("{id}/cancel")]
     [Authorize(Roles = "Recruiter,Admin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> CancelInterview(int id)
     {
         try

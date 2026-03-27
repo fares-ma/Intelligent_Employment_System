@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using CsvHelper;
+using System.Globalization;
+using System.IO;
 using Services.Abstractions;
 using Services.Abstractions.DTOs.JobApplication;
 using System.Security.Claims;
@@ -129,6 +132,44 @@ public class JobApplicationController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in GetJobApplications");
+            return StatusCode(500, new { message = "Internal server error" });
+        }
+    }
+
+    /// <summary>
+    /// Export job applications to CSV (Recruiter/Admin only)
+    /// </summary>
+    [HttpGet("job/{jobPostId}/export")]
+    [Authorize(Roles = "Recruiter,Admin")]
+    public async Task<IActionResult> ExportApplicationsAsCsv(int jobPostId)
+    {
+        try
+        {
+            // Fetch applications without pagination for export
+            var applications = await _service.GetJobApplicationsAsync(jobPostId, 1, 10000); // Hacky way for all for MVP
+
+            using var memoryStream = new MemoryStream();
+            using var streamWriter = new StreamWriter(memoryStream);
+            using var csvWriter = new CsvWriter(streamWriter, CultureInfo.InvariantCulture);
+
+            var exportData = applications.Select(a => new
+            {
+                ApplicationId = a.Id,
+                CandidateName = a.CandidateName,
+                CandidateId = a.CandidateId,
+                Status = a.Status,
+                AppliedAt = a.AppliedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+                Score = a.MatchScore?.ToString() ?? "N/A"
+            }).ToList();
+
+            await csvWriter.WriteRecordsAsync(exportData);
+            await streamWriter.FlushAsync();
+
+            return File(memoryStream.ToArray(), "text/csv", $"job-{jobPostId}-applications.csv");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error exporting applications");
             return StatusCode(500, new { message = "Internal server error" });
         }
     }

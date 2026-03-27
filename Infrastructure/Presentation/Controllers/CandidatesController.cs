@@ -34,6 +34,8 @@ public class CandidatesController : ControllerBase
     /// Get candidate profile
     /// </summary>
     [HttpGet("profile")]
+    [ProducesResponseType(typeof(CandidateProfileDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<CandidateProfileDto>> GetProfile()
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -48,6 +50,8 @@ public class CandidatesController : ControllerBase
     /// Update candidate profile
     /// </summary>
     [HttpPut("profile")]
+    [ProducesResponseType(typeof(CandidateProfileDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<CandidateProfileDto>> UpdateProfile([FromBody] UpdateCandidateProfileDto dto)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -63,6 +67,8 @@ public class CandidatesController : ControllerBase
     /// Update candidate skills
     /// </summary>
     [HttpPut("skills")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> UpdateSkills([FromBody] UpdateSkillsDto dto)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -77,6 +83,9 @@ public class CandidatesController : ControllerBase
     /// Upload resume (PDF or DOCX)
     /// </summary>
     [HttpPost("resume")]
+    [ProducesResponseType(typeof(ResumeDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<ResumeDto>> UploadResume(IFormFile file)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -108,6 +117,8 @@ public class CandidatesController : ControllerBase
     /// Delete resume
     /// </summary>
     [HttpDelete("resume/{resumeId:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> DeleteResume(int resumeId)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -123,6 +134,8 @@ public class CandidatesController : ControllerBase
     /// Generate AI CV from resume
     /// </summary>
     [HttpPost("resume/{resumeId:int}/generate-cv")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<string>> GenerateCv(int resumeId)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -138,6 +151,9 @@ public class CandidatesController : ControllerBase
     /// Update profile picture
     /// </summary>
     [HttpPut("profile-picture")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<string>> UpdateProfilePicture(IFormFile file)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -168,6 +184,9 @@ public class CandidatesController : ControllerBase
     /// Get candidate applications
     /// </summary>
     [HttpGet("applications")]
+    [ProducesResponseType(typeof(PagedResult<CandidateApplicationDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<PagedResult<CandidateApplicationDto>>> GetApplications([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -188,6 +207,9 @@ public class CandidatesController : ControllerBase
     /// Get saved jobs
     /// </summary>
     [HttpGet("saved-jobs")]
+    [ProducesResponseType(typeof(PagedResult<dynamic>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<PagedResult<dynamic>>> GetSavedJobs([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -208,6 +230,8 @@ public class CandidatesController : ControllerBase
     /// Toggle save job
     /// </summary>
     [HttpPost("saved-jobs/{jobPostId:int}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> ToggleSaveJob(int jobPostId)
     {
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;

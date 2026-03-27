@@ -10,4 +10,8 @@
   </Folder>
   <Project Path="IES.api/IES.api.csproj" />
   <Project Path="Shared/Shared.csproj" />
+  <Folder Name="/Tests/">
+    <Project Path="tests/IES.UnitTests/IES.UnitTests.csproj" />
+    <Project Path="tests/IES.IntegrationTests/IES.IntegrationTests.csproj" />
+  </Folder>
 </Solution>

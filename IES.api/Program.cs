@@ -155,13 +155,23 @@ namespace IES.api
             builder.Services.AddScoped<IJobPostingService, JobPostingService>();
             builder.Services.AddScoped<IJobApplicationService, JobApplicationService>();
             builder.Services.AddScoped<IInterviewService, InterviewService>();
+            builder.Services.AddScoped<IAssessmentService, AssessmentService>();
+            builder.Services.AddScoped<INotificationService, NotificationService>();
+            builder.Services.AddScoped<INotificationPusher, Infrastructure.Presentation.Services.SignalRNotificationPusher>();
+            builder.Services.AddScoped<IEmailService, EmailService>();
+            builder.Services.AddScoped<IDashboardService, DashboardService>();
 
             // ── Configuration for FileStorage ──
             builder.Services.Configure<Shared.Configuration.FileStorageSettings>(
                 builder.Configuration.GetSection("FileStorage"));
 
             // ── AutoMapper ──
-            builder.Services.AddAutoMapper(typeof(AuthMappingProfile), typeof(CandidateMappingProfile));
+            builder.Services.AddAutoMapper(
+                typeof(AuthMappingProfile), 
+                typeof(CandidateMappingProfile),
+                typeof(AssessmentMappingProfile),
+                typeof(NotificationMappingProfile)
+            );
 
             // ── Controllers ──
             builder.Services.AddControllers()
@@ -240,7 +250,7 @@ namespace IES.api
             // ── SignalR Hub endpoints ──
             // Uncomment when hub classes are created:
             // app.MapHub<Presentation.Hubs.InterviewHub>("/hubs/interview");
-            // app.MapHub<Presentation.Hubs.NotificationHub>("/hubs/notifications");
+            app.MapHub<Presentation.Hubs.NotificationHub>("/hubs/notifications");
 
             app.Run();
         }
