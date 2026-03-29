@@ -42,12 +42,34 @@ public class JobExpiryBackgroundService : BackgroundService
                     _logger.LogInformation("Deactivated {Count} expired job postings", expiredJobs.Count());
                 }
             }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (ObjectDisposedException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in JobExpiryBackgroundService");
+                try
+                {
+                    _logger.LogError(ex, "Error in JobExpiryBackgroundService");
+                }
+                catch
+                {
+                    // Ignore logger disposal failures during shutdown.
+                }
             }
 
-            await Task.Delay(TimeSpan.FromHours(24), stoppingToken);
+            try
+            {
+                await Task.Delay(TimeSpan.FromHours(24), stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
         }
     }
 }

@@ -62,7 +62,7 @@ public class NotificationsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<ActionResult> MarkAllAsRead()
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value!;
+        var userId = GetUserId();
         await _notificationService.MarkAllAsReadAsync(userId);
         return NoContent();
     }

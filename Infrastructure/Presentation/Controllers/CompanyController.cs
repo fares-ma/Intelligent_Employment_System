@@ -56,7 +56,7 @@ public class CompanyController : ControllerBase
     [HttpPut("{companyId}")]
     public async Task<ActionResult<CompanyProfileDto>> UpdateCompany(string companyId, [FromBody] UpdateCompanyDto request)
     {
-        _logger.LogInformation("Updating company {CompanyId} for user {UserId}", companyId, User.FindFirst("sub")?.Value);
+        _logger.LogInformation("Updating company {CompanyId} for user {UserId}", companyId, User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value);
 
         if (!ModelState.IsValid)
         {
@@ -65,7 +65,7 @@ public class CompanyController : ControllerBase
 
         try
         {
-            var userId = User.FindFirst("sub")?.Value;
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -91,7 +91,7 @@ public class CompanyController : ControllerBase
     [HttpPost("{companyId}/transfer-admin")]
     public async Task<ActionResult<AdminTransferResponseDto>> TransferAdmin(string companyId, [FromBody] AdminTransferDto request)
     {
-        _logger.LogInformation("Admin transfer requested for company {CompanyId} by user {UserId}", companyId, User.FindFirst("sub")?.Value);
+        _logger.LogInformation("Admin transfer requested for company {CompanyId} by user {UserId}", companyId, User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value);
 
         if (!ModelState.IsValid)
         {
@@ -100,7 +100,7 @@ public class CompanyController : ControllerBase
 
         try
         {
-            var userId = User.FindFirst("sub")?.Value;
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
@@ -129,7 +129,7 @@ public class CompanyController : ControllerBase
 
         try
         {
-            var userId = User.FindFirst("sub")?.Value;
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();

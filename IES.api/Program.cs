@@ -116,9 +116,10 @@ namespace IES.api
 
                 options.AddPolicy("AllowClient", policy =>
                 {
-                    policy.WithOrigins(
-                              builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-                              ?? ["http://localhost:4200"])
+                    // Using SetIsOriginAllowed(origin => true) instead of AllowAnyOrigin()
+                    // This is a magic trick that allows ANY frontend URL while still allowing 
+                    // SignalR credentials (which crashes if you just use AllowAnyOrigin).
+                    policy.SetIsOriginAllowed(origin => true)
                           .AllowAnyMethod()
                           .AllowAnyHeader()
                           .AllowCredentials(); // Required for SignalR
@@ -166,12 +167,7 @@ namespace IES.api
                 builder.Configuration.GetSection("FileStorage"));
 
             // ── AutoMapper ──
-            builder.Services.AddAutoMapper(
-                typeof(AuthMappingProfile), 
-                typeof(CandidateMappingProfile),
-                typeof(AssessmentMappingProfile),
-                typeof(NotificationMappingProfile)
-            );
+            builder.Services.AddAutoMapper(_ => { }, typeof(AuthMappingProfile).Assembly);
 
             // ── Controllers ──
             builder.Services.AddControllers()
@@ -237,6 +233,11 @@ namespace IES.api
             }
 
             app.UseMiddleware<GlobalExceptionHandler>();
+
+            app.UseForwardedHeaders(new ForwardedHeadersOptions
+            {
+                ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+            });
 
             app.UseHttpsRedirection();
 

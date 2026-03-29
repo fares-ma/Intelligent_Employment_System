@@ -442,6 +442,12 @@ public class AuthService : IAuthService
             new(JwtRegisteredClaimNames.Jti, jti)
         };
 
+        // Add CompanyId claim if user is a Recruiter with assigned company
+        if (user is Recruiter recruiter && recruiter.CompanyId.HasValue)
+        {
+            claims.Add(new Claim("companyId", recruiter.CompanyId.Value.ToString()));
+        }
+
         var token = new JwtSecurityToken(
             issuer: jwtSettings["Issuer"],
             audience: jwtSettings["Audience"],

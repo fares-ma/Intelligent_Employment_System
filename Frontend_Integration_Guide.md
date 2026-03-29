@@ -47,6 +47,165 @@ IES is an AI-powered recruitment platform connecting **Candidates** and **Recrui
 
 ---
 
+
+## 🗺 دليل صفحات واجهة المستخدم (Frontend Pages & UI Guide)
+
+بناءً على تحليل الـ APIs الخاصة بالمصادقة (Auth)، المرشحين (Candidates)، والشركات (Company)، إليك الصفحات التي يجب على مطور الواجهة الأمامية إنشاؤها ومحتوياتها:
+
+### 1. قسم المصادقة (Authentication Pages)
+#### أ. صفحة تسجيل دخول المرشح والشركة (Login Page)
+- **المسار (Route):** `/login`
+- **المكونات:** 
+  - حقل البريد الإلكتروني (Email)
+  - حقل كلمة المرور (Password)
+  - زر "تسجيل الدخول" (ينادي `POST /api/Auth/login`)
+  - رابط "نسيت كلمة المرور" (يوجه إلى `/forgot-password`)
+  - روابط للتسجيل: "إنشاء حساب كمرشح" / "تسجيل شركة جديدة"
+
+#### ب. صفحة تسجيل المرشح (Candidate Registration)
+- **المسار (Route):** `/register/candidate`
+- **المكونات:**
+  - حقول: الاسم الأول، الاسم الأخير، البريد الإلكتروني، كلمة المرور، تأكيد كلمة المرور.
+  - زر "تسجيل" (ينادي `POST /api/Auth/register`)
+
+#### ج. صفحة تسجيل شركة جديدة - مسؤول (Company Registration)
+- **المسار (Route):** `/register/company`
+- **المكونات:**
+  - بيانات مسؤول التوظيف: الاسم الأول، الاسم الأخير، البريد، كلمة المرور.
+  - بيانات الشركة: اسم الشركة، الرقم الضريبي (TaxNumber)، الموقع الإلكتروني (اختياري).
+  - زر "تسجيل الشركة" (ينادي `POST /api/Auth/register/company`)
+
+#### د. صفحة تسجيل موظف توظيف - عبر دعوة (Recruiter Registration via Invite)
+- **المسار (Route):** `/register/recruiter`
+- **المكونات:**
+  - حقول: الاسم، البريد، كلمة المرور، **كود الدعوة (Invite Code)**.
+  - زر "تسجيل" (ينادي `POST /api/Auth/register/recruiter`)
+
+---
+
+### 2. قسم المرشح (Candidate Portal)
+#### أ. صفحة الملف الشخصي للمرشح (Candidate Profile)
+- **المسار (Route):** `/candidate/profile`
+- **المكونات:**
+  - **عرض البيانات:** جلب البيانات عبر `GET /api/Candidates/profile`.
+  - **تعديل البيانات الأساسية:** فورم لتعديل العنوان، المسمى الوظيفي، النبذة، روابط التواصل (ينادي `PUT /api/Candidates/profile`).
+  - **الصورة الشخصية:** مكون لرفع وتعديل الصورة (ينادي `PUT /api/Candidates/profile-picture` - FormData).
+  - **السير الذاتية (Resumes):** قائمة بالسير الذاتية المرفوعة.
+    - زر لرفع سيرة ذاتية جديدة (ينادي `POST /api/Candidates/resume` - FormData PDF/DOCX).
+    - زر لحذف السيرة (ينادي `DELETE /api/Candidates/resume/{id}`).
+    - زر "توليد CV بالذكاء الاصطناعي" (ينادي `POST /api/Candidates/resume/{id}/generate-cv`).
+  - **المهارات:** مكون لإضافة وحذف المهارات (ينادي `PUT /api/Candidates/skills`).
+
+#### ب. صفحة الوظائف المحفوظة وتطبيقات العمل (Saved Jobs & Applications)
+- **المسار (Route):** `/candidate/dashboard`
+- **المكونات:**
+  - **الوظائف المحفوظة:** جدول يعرض الوظائف (ينادي `GET /api/Candidates/saved-jobs`).
+    - زر إزالة من المحفوظات (ينادي `POST /api/Candidates/saved-jobs/{id}`).
+  - **سجل التقديمات:** جدول يعرض حالة الطلبات (Pending, Accepted...) (ينادي `GET /api/Candidates/applications`).
+
+---
+
+### 3. قسم الشركة ومسؤول التوظيف (Company & Recruiter Portal)
+#### أ. صفحة إعدادات الشركة (Company Settings - Admin Only)
+- **المسار (Route):** `/company/settings`
+- **المكونات:**
+  - **عرض تفاصيل الشركة:** (ينادي `GET /api/Company/{companyId}`).
+  - **تعديل بيانات الشركة:** فورم لتعديل الاسم، اللوجو، الوصف، الموقع (ينادي `PUT /api/Company/{companyId}`).
+  - **نقل الصلاحية (Transfer Admin):** فورم لاختيار موظف توظيف آخر لنقل صلاحية الإدارة إليه (ينادي `POST /api/Company/{companyId}/transfer-admin`).
+  - **إحصائيات الدعوات:** عرض عدد الدعوات النشطة (ينادي `GET /api/Company/{companyId}/active-invitations-count`).
+
+
+
+### 4. قسم الوظائف للمرشحين (Job Searching & Application)
+#### أ. صفحة البحث عن الوظائف (Job Feed / Search)
+- **المسار (Route):** `/jobs`
+- **المكونات:**
+  - **قائمة الوظائف:** عرض الوظائف النشطة (ينادي `GET /api/JobPosting`).
+  - **شريط البحث:** بحث بالكلمات المفتاحية (ينادي `GET /api/JobPosting/search/{searchTerm}`).
+  - **فلاتر (Filters):** تصفية حسب المهارات (`/api/JobPosting/skill/{id}`) وحسب نوع العمل (`/api/JobPosting/type/{type}`).
+
+#### ب. صفحة تفاصيل الوظيفة (Job Details)
+- **المسار (Route):** `/jobs/{jobId}`
+- **المكونات:**
+  - **عرض التفاصيل:** الوصف، المهارات المطلوبة، الراتب.. الخ (ينادي `GET /api/JobPosting/{id}`).
+  - **زر التقديم (Apply):** لتقديم طلب للوظيفة (ينادي `POST /api/JobApplication/apply`). يقوم النظام بالتحقق أولاً إذا كان المتقدم قدم مسبقاً (عبر `GET /api/JobApplication/check/{candidateId}/{jobId}`).
+  - **زر الحفظ:** (ينادي `POST /api/Candidates/saved-jobs/{jobId}`).
+
+#### ج. صفحة مقابلات المرشح (My Interviews)
+- **المسار (Route):** `/candidate/interviews`
+- **المكونات:**
+  - **جدول المقابلات:** عرض المقابلات المجدولة الخاصة به (ينادي `GET /api/Interview/candidate/{candidateId}`).
+
+---
+
+### 5. قسم إدارة التوظيف للشركات (Recruiter Job Management)
+#### أ. صفحة لوحة الوظائف الخاصة بالشركة (Company Jobs)
+- **المسار (Route):** `/recruiter/jobs`
+- **المكونات:**
+  - **قائمة الوظائف:** عرض الوظائف التي نشرتها الشركة (ينادي `GET /api/JobPosting/company/{companyId}`).
+  - **زر إضافة وظيفة:** يوجه لصفحة الإنشاء.
+  - **أزرار تحكم لكل وظيفة:** تعديل (يوجه لصفحة التعديل)، حذف (ينادي `DELETE /api/JobPosting/{id}`).
+
+#### ب. صفحة إنشاء / تعديل وظيفة (Create/Edit Job)
+- **المسار (Route):** `/recruiter/jobs/new` و `/recruiter/jobs/edit/{jobId}`
+- **المكونات:**
+  - **فورم الوظيفة:** العنوان، الوصف، المتطلبات..الخ (ينادي `POST /api/JobPosting?companyId={id}` للإنشاء أو `PUT /api/JobPosting/{id}` للتعديل).
+
+#### ج. لوحة المتقدمين للوظيفة (Job Applications Board)
+- **المسار (Route):** `/recruiter/jobs/{jobId}/applications`
+- **المكونات:**
+  - **عرض المتقدمين (Kanban / Table):** عرض المتقدمين مقسمين حسب الحالة (ينادي `GET /api/JobApplication/job/{jobId}` أو `/api/JobApplication/job/{jobId}/status/{status}`).
+  - **تغيير حالة الطلب:** (ينادي `PUT /api/JobApplication/{id}/status`).
+  - **زر تصدير لملف CSV:** لتحميل قائمة المتقدمين (ينادي `GET /api/JobApplication/job/{jobId}/export`).
+
+#### د. إدارة المقابلات (Interview Management)
+- **المسار (Route):** `/recruiter/interviews`
+- **المكونات:**
+  - **تحديد موعد مقابلة (Schedule):** فورم لتحديد موعد للمتقدم (ينادي `POST /api/Interview/schedule`).
+  - **قائمة المقابلات المجدولة:** عرض وتعديل المقابلات (ينادي `GET /api/Interview/recruiter/interviews` أو تحديث الموعد عبر `PUT /api/Interview/{id}`).
+  - **إلغاء مقابلة:** (ينادي `DELETE /api/Interview/{id}/cancel`).
+
+
+
+### 6. قسم التقييمات والذكاء الاصطناعي (Assessments & AI)
+#### أ. صفحة إنشاء تقييم (Create Assessment) - للشركات
+- **المسار (Route):** `/recruiter/assessments/new`
+- **المكونات:**
+  - **توليد عبر الذكاء الاصطناعي:** زر (Generate via AI) لاختيار وظيفة وعدد الأسئلة وسيقوم النظام بتوليدها (ينادي `POST /api/Assessments/job/{jobId}/generate`).
+  - **إنشاء يدوي:** فورم لكتابة الأسئلة يدوياً وإضافتها لوظيفة (ينادي `POST /api/Assessments`).
+
+#### ب. صفحة أداء التقييم (Take Assessment) - للمرشحين
+- **المسار (Route):** `/candidate/assessments/{assessmentId}`
+- **المكونات:**
+  - **بدء التقييم:** زر "Start" لجلب بيانات الأسئلة (ينادي `POST /api/Assessments/{id}/start`).
+  - **واجهة الأسئلة:** عرض الأسئلة الواحد تلو الآخر أو في صفحة واحدة، مع مؤقت (إن وجد).
+  - **تسليم التقييم:** زر "Submit" يقوم بإرسال إجابات المرشح (ينادي `POST /api/Assessments/{id}/submit`).
+
+---
+
+### 7. لوحة التحكم والإحصائيات (Dashboards)
+#### أ. لوحة تحكم المرشح (Candidate Dashboard)
+- **المسار (Route):** `/candidate/dashboard`
+- **المكونات:**
+  - **الإحصائيات الرئيسية:** إجمالي التقديمات، المقابلات القادمة، الوظائف المحفوظة (ينادي `GET /api/Dashboards/candidate`).
+
+#### ب. لوحة تحكم الشركة (Company/Recruiter Dashboard)
+- **المسار (Route):** `/recruiter/dashboard`
+- **المكونات:**
+  - **الإحصائيات الرئيسية:** إجمالي الوظائف النشطة، عدد المتقدمين الإجمالي، المقابلات القادمة للشركة (ينادي `GET /api/Dashboards/company/{companyId}`).
+
+---
+
+### 8. قسم الإشعارات والتواصل المباشر (Notifications & Real-time)
+#### أ. مكون الإشعارات (Notification Dropdown / Bell Icon)
+- **المكان:** شريط التنقل العلوي (Navbar).
+- **المكونات:**
+  - **رقم الإشعارات غير المقروءة:** (ينادي `GET /api/Notifications/unread-count`).
+  - **قائمة الإشعارات:** جلب آخر الإشعارات (ينادي `GET /api/Notifications`).
+  - **تحديد كمقروء:** زر عند كل إشعار (ينادي `PATCH /api/Notifications/{id}/mark-read`) وزر للكل (ينادي `PATCH /api/Notifications/read-all`).
+  - **الربط المباشر (SignalR):** الاستماع لـ `/hubs/notifications` لاستقبال الإشعارات الجديدة فورياً دون إعادة تحميل الصفحة (تفاصيل أكثر في قسم Real-Time بالأسفل).
+
+
 ## 🛠 2. Development Setup
 
 ### Backend URLs (Development)

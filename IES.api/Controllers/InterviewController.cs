@@ -121,10 +121,8 @@ public class InterviewController : ControllerBase
         try
         {
             var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
-
             // Candidates can only view their own interviews
-            if (userRole == "Candidate" && currentUserId != candidateId)
+            if (User.IsInRole("Candidate") && currentUserId != candidateId)
                 return Forbid("You can only view your own interviews");
 
             var result = await _service.GetCandidateInterviewsAsync(candidateId, pageNumber, pageSize);

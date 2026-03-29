@@ -88,7 +88,9 @@ public class AuthServiceTests
             UserType = "Candidate",
             Gender = "Male",
             FirstName = "Test",
-            LastName = "User"
+            LastName = "User",
+            PhoneNumber = "1234567890",
+            DateOfBirth = new DateTime(1990, 1, 1)
         };
         
         _userManagerMock.Setup(x => x.FindByEmailAsync(request.Email)).ReturnsAsync((ApplicationUser)null);
