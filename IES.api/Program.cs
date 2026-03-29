@@ -235,23 +235,34 @@ namespace IES.api
             app.UseMiddleware<GlobalExceptionHandler>();
 
             // Configure ForwardedHeaders for proxy environments (IIS, load balancers, etc.)
+            var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
             var knownProxies = builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>();
             var forwardedHeadersOptions = new ForwardedHeadersOptions
             {
                 ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
             };
 
+            var hasValidKnownProxy = false;
+
             if (knownProxies != null && knownProxies.Length > 0)
             {
                 foreach (var proxy in knownProxies)
                 {
                     if (System.Net.IPAddress.TryParse(proxy, out var ipAddress))
+                    {
                         forwardedHeadersOptions.KnownProxies.Add(ipAddress);
+                        hasValidKnownProxy = true;
+                    }
+                    else
+                    {
+                        startupLogger.LogWarning("Invalid forwarded proxy IP configured: {Proxy}", proxy);
+                    }
                 }
             }
-            else
+
+            if (!hasValidKnownProxy)
             {
-                // If no proxies configured, trust localhost only (default safe behavior)
+                startupLogger.LogWarning("No valid forwarded proxies configured. Falling back to loopback addresses only.");
                 forwardedHeadersOptions.KnownProxies.Add(System.Net.IPAddress.Loopback);
                 forwardedHeadersOptions.KnownProxies.Add(System.Net.IPAddress.IPv6Loopback);
             }
