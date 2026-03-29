@@ -147,7 +147,7 @@ public class InterviewController : ControllerBase
     [Authorize(Roles = "Recruiter,Admin")]
     [ProducesResponseType(typeof(IEnumerable<InterviewDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<IEnumerable<InterviewDto>>> GetRecruiterInterviews(
         [FromQuery] int pageNumber = 1,
@@ -155,8 +155,9 @@ public class InterviewController : ControllerBase
     {
         try
         {
-            var recruiterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? throw new UnauthorizedAccessException("User identity not found");
+            var recruiterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(recruiterId))
+                return Unauthorized();
 
             var result = await _service.GetRecruiterInterviewsAsync(recruiterId, pageNumber, pageSize);
             return Ok(result);

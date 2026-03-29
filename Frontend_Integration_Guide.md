@@ -100,7 +100,7 @@ IES is an AI-powered recruitment platform connecting **Candidates** and **Recrui
 - **المسار (Route):** `/candidate/dashboard`
 - **المكونات:**
   - **الوظائف المحفوظة:** جدول يعرض الوظائف (ينادي `GET /api/Candidates/saved-jobs`).
-    - زر إزالة من المحفوظات (ينادي `POST /api/Candidates/saved-jobs/{id}`).
+    - زر toggle حفظ/إزالة من المحفوظات (ينادي `POST /api/Candidates/saved-jobs/{id}` - هذا الـ endpoint عبارة عن toggle: إذا كانت الوظيفة محفوظة سيتم إزالتها، وإذا لم تكن محفوظة سيتم حفظها). يجب تحديث واجهة المستخدم لعرض الحالة الجديدة بعد استدعاء الـ API.
   - **سجل التقديمات:** جدول يعرض حالة الطلبات (Pending, Accepted...) (ينادي `GET /api/Candidates/applications`).
 
 ---
@@ -109,10 +109,10 @@ IES is an AI-powered recruitment platform connecting **Candidates** and **Recrui
 #### أ. صفحة إعدادات الشركة (Company Settings - Admin Only)
 - **المسار (Route):** `/company/settings`
 - **المكونات:**
-  - **عرض تفاصيل الشركة:** (ينادي `GET /api/Company/{companyId}`).
-  - **تعديل بيانات الشركة:** فورم لتعديل الاسم، اللوجو، الوصف، الموقع (ينادي `PUT /api/Company/{companyId}`).
-  - **نقل الصلاحية (Transfer Admin):** فورم لاختيار موظف توظيف آخر لنقل صلاحية الإدارة إليه (ينادي `POST /api/Company/{companyId}/transfer-admin`).
-  - **إحصائيات الدعوات:** عرض عدد الدعوات النشطة (ينادي `GET /api/Company/{companyId}/active-invitations-count`).
+  - **عرض تفاصيل الشركة:** (ينادي `GET /api/companies/{companyId}`).
+  - **تعديل بيانات الشركة:** فورم لتعديل الاسم، اللوجو، الوصف، الموقع (ينادي `PUT /api/companies/{companyId}`).
+  - **نقل الصلاحية (Transfer Admin):** فورم لاختيار موظف توظيف آخر لنقل صلاحية الإدارة إليه (ينادي `POST /api/companies/{companyId}/transfer-admin`).
+  - **إحصائيات الدعوات:** عرض عدد الدعوات النشطة (ينادي `GET /api/companies/{companyId}/active-invitations-count`).
 
 
 
@@ -120,21 +120,21 @@ IES is an AI-powered recruitment platform connecting **Candidates** and **Recrui
 #### أ. صفحة البحث عن الوظائف (Job Feed / Search)
 - **المسار (Route):** `/jobs`
 - **المكونات:**
-  - **قائمة الوظائف:** عرض الوظائف النشطة (ينادي `GET /api/JobPosting`).
-  - **شريط البحث:** بحث بالكلمات المفتاحية (ينادي `GET /api/JobPosting/search/{searchTerm}`).
-  - **فلاتر (Filters):** تصفية حسب المهارات (`/api/JobPosting/skill/{id}`) وحسب نوع العمل (`/api/JobPosting/type/{type}`).
+  - **قائمة الوظائف:** عرض الوظائف النشطة (ينادي `GET /api/jobs`).
+  - **شريط البحث:** بحث بالكلمات المفتاحية (ينادي `GET /api/jobs/search/{searchTerm}`).
+  - **فلاتر (Filters):** تصفية حسب المهارات (`/api/jobs/skill/{id}`) وحسب نوع العمل (`/api/jobs/type/{type}`).
 
 #### ب. صفحة تفاصيل الوظيفة (Job Details)
 - **المسار (Route):** `/jobs/{jobId}`
 - **المكونات:**
-  - **عرض التفاصيل:** الوصف، المهارات المطلوبة، الراتب.. الخ (ينادي `GET /api/JobPosting/{id}`).
+  - **عرض التفاصيل:** الوصف، المهارات المطلوبة، الراتب.. الخ (ينادي `GET /api/jobs/{id}`).
   - **زر التقديم (Apply):** لتقديم طلب للوظيفة (ينادي `POST /api/JobApplication/apply`). يقوم النظام بالتحقق أولاً إذا كان المتقدم قدم مسبقاً (عبر `GET /api/JobApplication/check/{candidateId}/{jobId}`).
   - **زر الحفظ:** (ينادي `POST /api/Candidates/saved-jobs/{jobId}`).
 
 #### ج. صفحة مقابلات المرشح (My Interviews)
 - **المسار (Route):** `/candidate/interviews`
 - **المكونات:**
-  - **جدول المقابلات:** عرض المقابلات المجدولة الخاصة به (ينادي `GET /api/Interview/candidate/{candidateId}`).
+  - **جدول المقابلات:** عرض المقابلات المجدولة الخاصة به (ينادي `GET /api/interviews/candidate/{candidateId}`).
 
 ---
 
@@ -142,14 +142,14 @@ IES is an AI-powered recruitment platform connecting **Candidates** and **Recrui
 #### أ. صفحة لوحة الوظائف الخاصة بالشركة (Company Jobs)
 - **المسار (Route):** `/recruiter/jobs`
 - **المكونات:**
-  - **قائمة الوظائف:** عرض الوظائف التي نشرتها الشركة (ينادي `GET /api/JobPosting/company/{companyId}`).
+  - **قائمة الوظائف:** عرض الوظائف التي نشرتها الشركة (ينادي `GET /api/jobs/company/{companyId}`).
   - **زر إضافة وظيفة:** يوجه لصفحة الإنشاء.
-  - **أزرار تحكم لكل وظيفة:** تعديل (يوجه لصفحة التعديل)، حذف (ينادي `DELETE /api/JobPosting/{id}`).
+  - **أزرار تحكم لكل وظيفة:** تعديل (يوجه لصفحة التعديل)، حذف (ينادي `DELETE /api/jobs/{id}`).
 
 #### ب. صفحة إنشاء / تعديل وظيفة (Create/Edit Job)
 - **المسار (Route):** `/recruiter/jobs/new` و `/recruiter/jobs/edit/{jobId}`
 - **المكونات:**
-  - **فورم الوظيفة:** العنوان، الوصف، المتطلبات..الخ (ينادي `POST /api/JobPosting?companyId={id}` للإنشاء أو `PUT /api/JobPosting/{id}` للتعديل).
+  - **فورم الوظيفة:** العنوان، الوصف، المتطلبات..الخ (ينادي `POST /api/jobs?companyId={id}` للإنشاء أو `PUT /api/jobs/{id}` للتعديل).
 
 #### ج. لوحة المتقدمين للوظيفة (Job Applications Board)
 - **المسار (Route):** `/recruiter/jobs/{jobId}/applications`
@@ -161,9 +161,9 @@ IES is an AI-powered recruitment platform connecting **Candidates** and **Recrui
 #### د. إدارة المقابلات (Interview Management)
 - **المسار (Route):** `/recruiter/interviews`
 - **المكونات:**
-  - **تحديد موعد مقابلة (Schedule):** فورم لتحديد موعد للمتقدم (ينادي `POST /api/Interview/schedule`).
-  - **قائمة المقابلات المجدولة:** عرض وتعديل المقابلات (ينادي `GET /api/Interview/recruiter/interviews` أو تحديث الموعد عبر `PUT /api/Interview/{id}`).
-  - **إلغاء مقابلة:** (ينادي `DELETE /api/Interview/{id}/cancel`).
+  - **تحديد موعد مقابلة (Schedule):** فورم لتحديد موعد للمتقدم (ينادي `POST /api/interviews/schedule`).
+  - **قائمة المقابلات المجدولة:** عرض وتعديل المقابلات (ينادي `GET /api/interviews/recruiter/interviews` أو تحديث الموعد عبر `PUT /api/interviews/{id}`).
+  - **إلغاء مقابلة:** (ينادي `DELETE /api/interviews/{id}/cancel`).
 
 
 

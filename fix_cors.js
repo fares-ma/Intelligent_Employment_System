@@ -8,16 +8,25 @@ const corsRegex = /options\.AddPolicy\("AllowClient", policy =>\s*\{[\s\S]*?\}\)
 
 const newCors = `options.AddPolicy("AllowClient", policy =>
                 {
-                    // Using SetIsOriginAllowed(origin => true) instead of AllowAnyOrigin()
-                    // This is a magic trick that allows ANY frontend URL while still allowing 
-                    // SignalR credentials (which crashes if you just use AllowAnyOrigin).
-                    policy.SetIsOriginAllowed(origin => true)
+                    var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                        ?? new[] { "http://localhost:4200" };
+
+                    policy.WithOrigins(allowedOrigins)
                           .AllowAnyMethod()
                           .AllowAnyHeader()
                           .AllowCredentials(); // Required for SignalR
                 });`;
 
-content = content.replace(corsRegex, newCors);
+const updatedContent = content.replace(corsRegex, newCors);
 
-fs.writeFileSync(path, content, 'utf-8');
-console.log("CORS updated successfully for MVP deployment!");
+// Verify that the replacement actually occurred
+if (updatedContent === content) {
+    console.error("ERROR: CORS policy regex did not match. File was not modified.");
+    console.error("Expected pattern: options.AddPolicy(\"AllowClient\", policy => {...});");
+    process.exit(1);
+}
+
+fs.writeFileSync(path, updatedContent, 'utf-8');
+console.log("✓ CORS updated successfully with AllowedOrigins whitelist");
+console.log("✓ SignalR credentials support maintained with explicit origins");
+

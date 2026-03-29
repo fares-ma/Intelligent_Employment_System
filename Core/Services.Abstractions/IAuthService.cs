@@ -63,6 +63,6 @@ public interface IAuthService
     /// </summary>
     /// <param name="userId">The user ID</param>
     /// <param name="companyId">The company ID</param>
-    /// <returns>True if the user is a recruiter for the company, false otherwise</returns>
+    /// <returns>True if the user is associated with the company, false otherwise</returns>
     Task<bool> UserBelongsToCompanyAsync(string userId, int companyId);
 }

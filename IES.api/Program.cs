@@ -116,10 +116,10 @@ namespace IES.api
 
                 options.AddPolicy("AllowClient", policy =>
                 {
-                    // Using SetIsOriginAllowed(origin => true) instead of AllowAnyOrigin()
-                    // This is a magic trick that allows ANY frontend URL while still allowing 
-                    // SignalR credentials (which crashes if you just use AllowAnyOrigin).
-                    policy.SetIsOriginAllowed(origin => true)
+                    var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                        ?? new[] { "http://localhost:4200" };
+
+                    policy.WithOrigins(allowedOrigins)
                           .AllowAnyMethod()
                           .AllowAnyHeader()
                           .AllowCredentials(); // Required for SignalR
@@ -234,10 +234,29 @@ namespace IES.api
 
             app.UseMiddleware<GlobalExceptionHandler>();
 
-            app.UseForwardedHeaders(new ForwardedHeadersOptions
+            // Configure ForwardedHeaders for proxy environments (IIS, load balancers, etc.)
+            var knownProxies = builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>();
+            var forwardedHeadersOptions = new ForwardedHeadersOptions
             {
                 ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
-            });
+            };
+
+            if (knownProxies != null && knownProxies.Length > 0)
+            {
+                foreach (var proxy in knownProxies)
+                {
+                    if (System.Net.IPAddress.TryParse(proxy, out var ipAddress))
+                        forwardedHeadersOptions.KnownProxies.Add(ipAddress);
+                }
+            }
+            else
+            {
+                // If no proxies configured, trust localhost only (default safe behavior)
+                forwardedHeadersOptions.KnownProxies.Add(System.Net.IPAddress.Loopback);
+                forwardedHeadersOptions.KnownProxies.Add(System.Net.IPAddress.IPv6Loopback);
+            }
+
+            app.UseForwardedHeaders(forwardedHeadersOptions);
 
             app.UseHttpsRedirection();
 
