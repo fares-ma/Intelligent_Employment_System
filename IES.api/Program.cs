@@ -226,15 +226,14 @@ namespace IES.api
 
             // ── Middleware pipeline ──
 
-            if (app.Environment.IsDevelopment())
-            {
+          
                 app.UseSwagger();
                 app.UseSwaggerUI(options =>
                 {
                     options.SwaggerEndpoint("/swagger/v1/swagger.json", "IES API v1");
                     options.RoutePrefix = string.Empty; // Swagger UI at root
                 });
-            }
+          
 
             app.UseMiddleware<GlobalExceptionHandler>();
 
