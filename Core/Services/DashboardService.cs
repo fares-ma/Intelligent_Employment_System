@@ -17,14 +17,11 @@ public class DashboardService : IDashboardService
 
     public async Task<CandidateDashboardDto> GetCandidateDashboardAsync(string candidateId)
     {
-        var savedJobsQuery = await _unitOfWork.SavedJobs.FindAsync(sj => sj.CandidateId == candidateId);
-        var savedJobsCount = savedJobsQuery.Count();
+        var savedJobsCount = await _unitOfWork.SavedJobs.CountAsync(sj => sj.CandidateId == candidateId);
 
-        var activeAppsQuery = await _unitOfWork.JobApplications.FindAsync(ja => ja.CandidateId == candidateId && ja.Status != Domain.Enums.ApplicationStatus.Withdrawn && ja.Status != Domain.Enums.ApplicationStatus.Rejected);
-        var activeApplicationsCount = activeAppsQuery.Count();
+        var activeApplicationsCount = await _unitOfWork.JobApplications.CountAsync(ja => ja.CandidateId == candidateId && ja.Status != Domain.Enums.ApplicationStatus.Withdrawn && ja.Status != Domain.Enums.ApplicationStatus.Rejected);
 
-        var upcomingInterviewsQuery = await _unitOfWork.Interviews.FindAsync(i => i.JobApplication.CandidateId == candidateId && i.Status == Domain.Enums.InterviewStatus.Scheduled);
-        var upcomingInterviewsCount = upcomingInterviewsQuery.Count();
+        var upcomingInterviewsCount = await _unitOfWork.Interviews.CountAsync(i => i.JobApplication.CandidateId == candidateId && i.Status == Domain.Enums.InterviewStatus.Scheduled);
 
         var unreadNotificationsCount = await _unitOfWork.Notifications.GetUnreadCountAsync(candidateId);
 
@@ -42,14 +39,11 @@ public class DashboardService : IDashboardService
         var company = await _unitOfWork.Companies.GetByIdAsync(companyId);
         if (company == null) throw new NotFoundException("Company not found");
 
-        var activeJobsQuery = await _unitOfWork.JobPosts.FindAsync(jp => jp.CompanyId == companyId && jp.IsActive && jp.IsPublished);
-        var activeJobsCount = activeJobsQuery.Count();
+        var activeJobsCount = await _unitOfWork.JobPosts.CountAsync(jp => jp.CompanyId == companyId && jp.IsActive && jp.IsPublished);
 
-        var applicantsQuery = await _unitOfWork.JobApplications.FindAsync(ja => ja.JobPost.CompanyId == companyId);
-        var totalApplicantsCount = applicantsQuery.Count();
+        var totalApplicantsCount = await _unitOfWork.JobApplications.CountAsync(ja => ja.JobPost.CompanyId == companyId);
 
-        var interviewsQuery = await _unitOfWork.Interviews.FindAsync(i => i.JobApplication.JobPost.CompanyId == companyId && i.Status == Domain.Enums.InterviewStatus.Scheduled);
-        var pendingInterviewsCount = interviewsQuery.Count();
+        var pendingInterviewsCount = await _unitOfWork.Interviews.CountAsync(i => i.JobApplication.JobPost.CompanyId == companyId && i.Status == Domain.Enums.InterviewStatus.Scheduled);
 
         // Company admins or recruiters might get notifications too, but let's just leave it at 0 for now
         // if we are not passing a specific recruiter userId.

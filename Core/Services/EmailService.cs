@@ -18,10 +18,12 @@ public class EmailService : IEmailService
 
     public Task SendEmailAsync(string to, string subject, string body)
     {
+        var maskedTo = to.Contains("@") ? $"{to[0]}***@{to.Split('@')[1]}" : "***";
+        
         _logger.LogInformation("--- MOCK EMAIL SENT ---");
-        _logger.LogInformation("To: {To}", to);
-        _logger.LogInformation("Subject: {Subject}", subject);
-        _logger.LogInformation("Body: {Body}", body);
+        _logger.LogDebug("To: {To}", maskedTo);
+        _logger.LogDebug("Subject: {Subject}", subject);
+        _logger.LogDebug("Body: {Body}", body);
         _logger.LogInformation("-----------------------");
         
         return Task.CompletedTask;

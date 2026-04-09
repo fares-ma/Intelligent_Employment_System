@@ -88,10 +88,8 @@ public class JobApplicationController : ControllerBase
         try
         {
             var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
-
             // Candidates can only view their own applications
-            if (userRole == "Candidate" && currentUserId != candidateId)
+            if (User.IsInRole("Candidate") && currentUserId != candidateId)
                 return Forbid("You can only view your own applications");
 
             var result = await _service.GetCandidateApplicationsAsync(candidateId, pageNumber, pageSize);
@@ -163,7 +161,10 @@ public class JobApplicationController : ControllerBase
             }).ToList();
 
             await csvWriter.WriteRecordsAsync(exportData);
+            await csvWriter.FlushAsync();
             await streamWriter.FlushAsync();
+            
+            memoryStream.Position = 0;
 
             return File(memoryStream.ToArray(), "text/csv", $"job-{jobPostId}-applications.csv");
         }

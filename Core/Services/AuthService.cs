@@ -361,6 +361,16 @@ public class AuthService : IAuthService
         }
     }
 
+    public async Task<bool> UserBelongsToCompanyAsync(string userId, int companyId)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is Domain.Models.Recruiter recruiter)
+        {
+            return recruiter.CompanyId == companyId;
+        }
+        return false;
+    }
+
     // ── Private helpers ──────────────────────────────────────────────
 
     /// <summary>
@@ -431,6 +441,12 @@ public class AuthService : IAuthService
             new("UserType", user.GetType().Name),
             new(JwtRegisteredClaimNames.Jti, jti)
         };
+
+        // Add CompanyId claim if user is a Recruiter with assigned company
+        if (user is Recruiter recruiter && recruiter.CompanyId.HasValue)
+        {
+            claims.Add(new Claim("companyId", recruiter.CompanyId.Value.ToString()));
+        }
 
         var token = new JwtSecurityToken(
             issuer: jwtSettings["Issuer"],

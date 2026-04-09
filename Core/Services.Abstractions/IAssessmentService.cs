@@ -14,6 +14,6 @@ public interface IAssessmentService
     // Candidate Operations
     Task<CandidateAssessmentDto> StartAssessmentAsync(int assessmentId, int jobApplicationId, string candidateId);
     Task<CandidateAssessmentDto> SubmitAssessmentAsync(SubmitAssessmentDto request, string candidateId);
-    Task<CandidateAssessmentDto> GetCandidateAssessmentAsync(int assessmentId, int jobApplicationId, string candidateId);
+    Task<CandidateAssessmentDto> GetCandidateAssessmentAsync(int assessmentId, string candidateId);
     Task<IEnumerable<CandidateAssessmentDto>> GetCandidateAssessmentsAsync(string candidateId);
 }

@@ -172,7 +172,7 @@ public class AssessmentService : IAssessmentService
         return _mapper.Map<CandidateAssessmentDto>(attempt);
     }
 
-    public async Task<CandidateAssessmentDto> GetCandidateAssessmentAsync(int assessmentId, int jobApplicationId, string candidateId)
+    public async Task<CandidateAssessmentDto> GetCandidateAssessmentAsync(int assessmentId, string candidateId)
     {
         var attempt = await _unitOfWork.CandidateAssessments.GetByCandidateAndAssessmentAsync(candidateId, assessmentId);
         if (attempt == null)

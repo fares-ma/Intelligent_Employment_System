@@ -26,7 +26,11 @@ public class DashboardsController : ControllerBase
     [ProducesResponseType(typeof(CandidateDashboardDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<CandidateDashboardDto>> GetCandidateDashboard()
     {
-        var candidateId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value!;
+        var claim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (claim == null || string.IsNullOrEmpty(claim.Value))
+            return Unauthorized("User identifier not found.");
+
+        var candidateId = claim.Value;
         var result = await _dashboardService.GetCandidateDashboardAsync(candidateId);
         return Ok(result);
     }
@@ -36,7 +40,16 @@ public class DashboardsController : ControllerBase
     [ProducesResponseType(typeof(CompanyDashboardDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<CompanyDashboardDto>> GetCompanyDashboard(int companyId)
     {
-        // Ideally we check if the Recruiter belongs to this company ID
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || string.IsNullOrEmpty(userIdClaim.Value))
+            return Unauthorized("User identifier not found.");
+
+        if (!User.IsInRole("Admin"))
+        {
+            var belongsToCompany = await _authService.UserBelongsToCompanyAsync(userIdClaim.Value, companyId);
+            if (!belongsToCompany) return Forbid();
+        }
+
         var result = await _dashboardService.GetCompanyDashboardAsync(companyId);
         return Ok(result);
     }

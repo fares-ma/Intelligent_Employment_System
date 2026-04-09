@@ -116,9 +116,10 @@ namespace IES.api
 
                 options.AddPolicy("AllowClient", policy =>
                 {
-                    policy.WithOrigins(
-                              builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-                              ?? ["http://localhost:4200"])
+                    var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                        ?? new[] { "http://localhost:4200" };
+
+                    policy.WithOrigins(allowedOrigins)
                           .AllowAnyMethod()
                           .AllowAnyHeader()
                           .AllowCredentials(); // Required for SignalR
@@ -166,12 +167,7 @@ namespace IES.api
                 builder.Configuration.GetSection("FileStorage"));
 
             // ── AutoMapper ──
-            builder.Services.AddAutoMapper(
-                typeof(AuthMappingProfile), 
-                typeof(CandidateMappingProfile),
-                typeof(AssessmentMappingProfile),
-                typeof(NotificationMappingProfile)
-            );
+            builder.Services.AddAutoMapper(_ => { }, typeof(AuthMappingProfile).Assembly);
 
             // ── Controllers ──
             builder.Services.AddControllers()
@@ -236,6 +232,41 @@ namespace IES.api
           
 
             app.UseMiddleware<GlobalExceptionHandler>();
+
+            // Configure ForwardedHeaders for proxy environments (IIS, load balancers, etc.)
+            var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+            var knownProxies = builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>();
+            var forwardedHeadersOptions = new ForwardedHeadersOptions
+            {
+                ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+            };
+
+            var hasValidKnownProxy = false;
+
+            if (knownProxies != null && knownProxies.Length > 0)
+            {
+                foreach (var proxy in knownProxies)
+                {
+                    if (System.Net.IPAddress.TryParse(proxy, out var ipAddress))
+                    {
+                        forwardedHeadersOptions.KnownProxies.Add(ipAddress);
+                        hasValidKnownProxy = true;
+                    }
+                    else
+                    {
+                        startupLogger.LogWarning("Invalid forwarded proxy IP configured: {Proxy}", proxy);
+                    }
+                }
+            }
+
+            if (!hasValidKnownProxy)
+            {
+                startupLogger.LogWarning("No valid forwarded proxies configured. Falling back to loopback addresses only.");
+                forwardedHeadersOptions.KnownProxies.Add(System.Net.IPAddress.Loopback);
+                forwardedHeadersOptions.KnownProxies.Add(System.Net.IPAddress.IPv6Loopback);
+            }
+
+            app.UseForwardedHeaders(forwardedHeadersOptions);
 
             app.UseHttpsRedirection();
 

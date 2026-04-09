@@ -49,7 +49,14 @@ public class AiScoringRetryService : BackgroundService
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "Failed to score application {ApplicationId}", application.Id);
+                        try
+                        {
+                            _logger.LogWarning(ex, "Failed to score application {ApplicationId}", application.Id);
+                        }
+                        catch
+                        {
+                            // Ignore logger disposal failures during shutdown.
+                        }
                     }
                 }
 
@@ -59,12 +66,34 @@ public class AiScoringRetryService : BackgroundService
                     _logger.LogInformation("Retried AI scoring for {Count} applications", applicationsWithoutScore.Count());
                 }
             }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (ObjectDisposedException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in AiScoringRetryService");
+                try
+                {
+                    _logger.LogError(ex, "Error in AiScoringRetryService");
+                }
+                catch
+                {
+                    // Ignore logger disposal failures during shutdown.
+                }
             }
 
-            await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+            try
+            {
+                await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
         }
     }
 }
