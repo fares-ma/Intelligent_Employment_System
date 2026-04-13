@@ -6,7 +6,7 @@ using System.Security.Claims;
 
 namespace IES.api.Controllers;
 
-[Authorize]
+//[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]

@@ -37,6 +37,11 @@ public class CompanyProfileDto
     public string? Description { get; set; }
 
     /// <summary>
+    /// Stored path for company logo / brand image (relative to file storage root when applicable).
+    /// </summary>
+    public string? LogoPath { get; set; }
+
+    /// <summary>
     /// Number of active job posts
     /// </summary>
     public int ActiveJobPostsCount { get; set; }

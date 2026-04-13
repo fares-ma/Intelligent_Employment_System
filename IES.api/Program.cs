@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.AspNetCore.Authentication;
 using Domain.Contracts;
 using Domain.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -8,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using Persistence.Data;
 using Persistence.Repositories;
 using Presentation.Middleware;
+using IES.api.Authentication;
 using Services;
 using Services.Abstractions;
 using Services.Mapping;
@@ -45,59 +47,77 @@ namespace IES.api
             .AddEntityFrameworkStores<AppDbContext>()
             .AddDefaultTokenProviders();
 
-            // ── JWT Authentication ──
-            var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-            var secretKey = jwtSettings["Secret"]!;
+            builder.Services.Configure<AnonymousApiAuthOptions>(
+                builder.Configuration.GetSection("AnonymousApi"));
 
-            builder.Services.AddAuthentication(options =>
+            var allowAnonymousApi = builder.Configuration.GetValue("AllowAnonymousApi", false);
+
+            // ── Authentication: JWT (normal) or anonymous bypass (demo / open API) ──
+            if (allowAnonymousApi)
             {
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-            })
-            .AddJwtBearer(options =>
+                builder.Services.AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = AnonymousApiAuthenticationHandler.SchemeName;
+                    options.DefaultChallengeScheme = AnonymousApiAuthenticationHandler.SchemeName;
+                })
+                .AddScheme<AuthenticationSchemeOptions, AnonymousApiAuthenticationHandler>(
+                    AnonymousApiAuthenticationHandler.SchemeName, _ => { });
+            }
+            else
             {
-                options.TokenValidationParameters = new TokenValidationParameters
+                var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+                var secretKey = jwtSettings["Secret"]!;
+
+                builder.Services.AddAuthentication(options =>
                 {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidIssuer = jwtSettings["Issuer"],
-                    ValidAudience = jwtSettings["Audience"],
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
-                    ClockSkew = TimeSpan.Zero // No extra tolerance — token expires exactly at exp
-                };
-
-                options.Events = new JwtBearerEvents
+                    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                })
+                .AddJwtBearer(options =>
                 {
-                    // ── jti blacklist check for logout invalidation ──
-                    OnTokenValidated = context =>
+                    options.TokenValidationParameters = new TokenValidationParameters
                     {
-                        var cache = context.HttpContext.RequestServices
-                            .GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+                        ValidIssuer = jwtSettings["Issuer"],
+                        ValidAudience = jwtSettings["Audience"],
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+                        ClockSkew = TimeSpan.Zero // No extra tolerance — token expires exactly at exp
+                    };
 
-                        var jti = context.Principal?.FindFirst("jti")?.Value;
-                        if (jti is not null && cache.TryGetValue($"blacklist_{jti}", out _))
-                        {
-                            context.Fail("Token has been revoked.");
-                        }
-                        return Task.CompletedTask;
-                    },
-
-                    // ── SignalR: extract token from query string ──
-                    OnMessageReceived = context =>
+                    options.Events = new JwtBearerEvents
                     {
-                        var accessToken = context.Request.Query["access_token"];
-                        var path = context.HttpContext.Request.Path;
-
-                        if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                        // ── jti blacklist check for logout invalidation ──
+                        OnTokenValidated = context =>
                         {
-                            context.Token = accessToken;
+                            var cache = context.HttpContext.RequestServices
+                                .GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
+
+                            var jti = context.Principal?.FindFirst("jti")?.Value;
+                            if (jti is not null && cache.TryGetValue($"blacklist_{jti}", out _))
+                            {
+                                context.Fail("Token has been revoked.");
+                            }
+                            return Task.CompletedTask;
+                        },
+
+                        // ── SignalR: extract token from query string ──
+                        OnMessageReceived = context =>
+                        {
+                            var accessToken = context.Request.Query["access_token"];
+                            var path = context.HttpContext.Request.Path;
+
+                            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                            {
+                                context.Token = accessToken;
+                            }
+                            return Task.CompletedTask;
                         }
-                        return Task.CompletedTask;
-                    }
-                };
-            });
+                    };
+                });
+            }
 
             builder.Services.AddAuthorization();
 

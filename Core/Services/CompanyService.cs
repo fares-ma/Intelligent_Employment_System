@@ -2,9 +2,12 @@ using Domain.Contracts;
 using Domain.Enums;
 using Domain.Exceptions;
 using Domain.Models;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Services.Abstractions;
 using Services.Abstractions.DTOs.Company;
+using Shared.Configuration;
 
 namespace Services;
 
@@ -15,11 +18,22 @@ namespace Services;
 public class CompanyService : ICompanyService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IFileStorageService _fileStorageService;
+    private readonly IOptions<FileStorageSettings> _fileStorageSettings;
+    private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<CompanyService> _logger;
 
-    public CompanyService(IUnitOfWork unitOfWork, ILogger<CompanyService> logger)
+    public CompanyService(
+        IUnitOfWork unitOfWork,
+        IFileStorageService fileStorageService,
+        IOptions<FileStorageSettings> fileStorageSettings,
+        UserManager<ApplicationUser> userManager,
+        ILogger<CompanyService> logger)
     {
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
+        _fileStorageService = fileStorageService ?? throw new ArgumentNullException(nameof(fileStorageService));
+        _fileStorageSettings = fileStorageSettings ?? throw new ArgumentNullException(nameof(fileStorageSettings));
+        _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -35,19 +49,18 @@ public class CompanyService : ICompanyService
 
         _logger.LogInformation("Fetching company profile for company ID: {CompanyId}", id);
 
-        var company = await _unitOfWork.Companies.GetByIdAsync(id);
+        var company = await _unitOfWork.Companies.GetByIdWithIncludesAsync(id, tracking: false);
         if (company is null)
         {
             _logger.LogWarning("Company not found: {CompanyId}", id);
             throw new NotFoundException($"Company with ID '{id}' not found");
         }
 
-        // Get admin recruiter (first recruiter with Admin role)
         var adminRecruiter = company.Recruiters.FirstOrDefault(r => r.RecruiterRole == UserRole.Admin);
-        if (adminRecruiter is null)
+        if (adminRecruiter is null && company.Recruiters.Count > 0)
         {
-            _logger.LogError("Admin recruiter not found for company: {CompanyId}", id);
-            throw new NotFoundException($"Admin recruiter not found for company");
+            _logger.LogError("Company {CompanyId} has recruiters but no admin role assigned", id);
+            throw new NotFoundException("Company admin could not be resolved");
         }
 
         // Get count of active job posts
@@ -64,15 +77,144 @@ public class CompanyService : ICompanyService
             Industry = company.Industry,
             Website = company.Website,
             Description = company.Description,
+            LogoPath = company.LogoPath,
             ActiveJobPostsCount = activeJobPostsCount,
             RecruiterCount = recruiterCount,
-            AdminId = adminRecruiter.Id,
-            AdminName = $"{adminRecruiter.FirstName} {adminRecruiter.LastName}",
+            AdminId = adminRecruiter?.Id ?? string.Empty,
+            AdminName = adminRecruiter is not null ? $"{adminRecruiter.FirstName} {adminRecruiter.LastName}" : string.Empty,
             CreatedAt = company.CreatedAt
         };
 
         _logger.LogInformation("Company profile retrieved successfully for company ID: {CompanyId}", id);
         return profile;
+    }
+
+    /// <inheritdoc />
+    public async Task<CompanyProfileDto> CreateCompanyAsync(
+        string? userId,
+        CreateCompanyRequestDto request,
+        Stream? brandAssetStream,
+        string? brandAssetFileName)
+    {
+        _logger.LogInformation("Create company requested (user id: {UserId})", userId ?? "(none)");
+
+        Recruiter? recruiterToLink = null;
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            recruiterToLink = await _unitOfWork.Recruiters.GetByIdAsync(userId);
+            if (recruiterToLink?.CompanyId is not null)
+                throw new ConflictException("This account is already linked to a company.");
+        }
+
+        var name = request.Name?.Trim() ?? string.Empty;
+        var industry = request.Industry?.Trim() ?? string.Empty;
+        var taxNumber = request.TaxNumber?.Trim() ?? string.Empty;
+        var description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
+        var website = string.IsNullOrWhiteSpace(request.Website) ? null : request.Website.Trim();
+
+        if (name.Length is < 2 or > 100)
+            throw new BadRequestException("Company name must be between 2 and 100 characters");
+
+        if (industry.Length is < 1 or > 100)
+            throw new BadRequestException("Industry must be between 1 and 100 characters");
+
+        if (string.IsNullOrEmpty(taxNumber) || taxNumber.Length > 50)
+            throw new BadRequestException("Tax number is required and must be at most 50 characters");
+
+        if (description is not null && description.Length > 1000)
+            throw new BadRequestException("Company description cannot exceed 1000 characters");
+
+        if (website is not null)
+        {
+            if (!Uri.TryCreate(website, UriKind.Absolute, out var uri) ||
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            {
+                throw new BadRequestException("Website must be a valid http or https URL");
+            }
+        }
+
+        var existing = await _unitOfWork.Companies.GetByTaxNumberAsync(taxNumber);
+        if (existing is not null)
+            throw new ConflictException("Company with this tax number already exists");
+
+        var company = new Company
+        {
+            Name = name,
+            Industry = industry,
+            Website = website,
+            TaxNumber = taxNumber,
+            Description = description,
+            LogoPath = null,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _unitOfWork.Companies.Create(company);
+        await _unitOfWork.SaveChangesAsync();
+
+        try
+        {
+            if (brandAssetStream is not null && !string.IsNullOrWhiteSpace(brandAssetFileName))
+            {
+                var absolutePath = await _fileStorageService.SaveFileAsync(brandAssetFileName, brandAssetStream, "company-brand");
+                company.LogoPath = ToRelativeStoragePath(absolutePath);
+                company.UpdatedAt = DateTime.UtcNow;
+                _unitOfWork.Companies.Update(company);
+                await _unitOfWork.SaveChangesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist brand asset for new company {CompanyId}", company.Id);
+            try
+            {
+                _unitOfWork.Companies.Delete(company);
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch (Exception cleanupEx)
+            {
+                _logger.LogError(cleanupEx, "Cleanup failed after brand upload failure for company {CompanyId}", company.Id);
+            }
+
+            throw;
+        }
+
+        if (recruiterToLink is not null)
+        {
+            recruiterToLink.CompanyId = company.Id;
+            recruiterToLink.RecruiterRole = UserRole.Admin;
+            _unitOfWork.Recruiters.Update(recruiterToLink);
+            await _unitOfWork.SaveChangesAsync();
+
+            if (!await _userManager.IsInRoleAsync(recruiterToLink, "Admin"))
+            {
+                var roleResult = await _userManager.AddToRoleAsync(recruiterToLink, "Admin");
+                if (!roleResult.Succeeded)
+                {
+                    var errors = string.Join(", ", roleResult.Errors.Select(e => e.Description));
+                    _logger.LogError("Failed to assign Admin role after company create: {Errors}", errors);
+                    throw new InvalidOperationException($"Failed to assign Admin role: {errors}");
+                }
+            }
+
+            _logger.LogInformation("Company {CompanyId} created and linked to recruiter {UserId}", company.Id, userId);
+        }
+        else
+        {
+            _logger.LogInformation("Company {CompanyId} created (standalone, no recruiter linked)", company.Id);
+        }
+
+        return await GetCompanyProfileAsync(company.Id.ToString());
+    }
+
+    private string ToRelativeStoragePath(string absolutePath)
+    {
+        var baseFull = Path.GetFullPath(_fileStorageSettings.Value.BasePath);
+        var full = Path.GetFullPath(absolutePath);
+        if (!full.StartsWith(baseFull, StringComparison.OrdinalIgnoreCase))
+            return absolutePath;
+        var rel = Path.GetRelativePath(baseFull, full);
+        return rel.Replace('\\', '/');
     }
 
     /// <summary>
@@ -100,7 +242,7 @@ public class CompanyService : ICompanyService
         }
 
         // Get company
-        var company = await _unitOfWork.Companies.GetByIdAsync(id);
+        var company = await _unitOfWork.Companies.GetByIdWithIncludesAsync(id, tracking: true);
         if (company is null)
         {
             _logger.LogWarning("Company not found: {CompanyId}", id);
@@ -151,7 +293,7 @@ public class CompanyService : ICompanyService
         }
 
         // Get company
-        var company = await _unitOfWork.Companies.GetByIdAsync(id);
+        var company = await _unitOfWork.Companies.GetByIdWithIncludesAsync(id, tracking: true);
         if (company is null)
         {
             _logger.LogWarning("Company not found: {CompanyId}", id);
@@ -217,7 +359,7 @@ public class CompanyService : ICompanyService
         _logger.LogInformation("Fetching active invitations count for company {CompanyId} by user {UserId}", id, userId);
 
         // Get company
-        var company = await _unitOfWork.Companies.GetByIdAsync(id);
+        var company = await _unitOfWork.Companies.GetByIdWithIncludesAsync(id, tracking: true);
         if (company is null)
         {
             throw new NotFoundException($"Company with ID '{id}' not found");
@@ -236,4 +378,3 @@ public class CompanyService : ICompanyService
         return count;
     }
 }
-

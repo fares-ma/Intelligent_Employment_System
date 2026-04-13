@@ -69,8 +69,9 @@ public class FileStorageService : IFileStorageService
             var extension = Path.GetExtension(fileName).ToLower();
 
             // Determine allowed extensions based on folder
-            bool isProfilePicture = folder.Contains("profile-picture", StringComparison.OrdinalIgnoreCase);
-            IEnumerable<string> allowedExtensions = isProfilePicture ? ImageExtensions : _settings.AllowedExtensions;
+            bool isImageFolder = folder.Contains("profile-picture", StringComparison.OrdinalIgnoreCase)
+                || folder.Contains("company-brand", StringComparison.OrdinalIgnoreCase);
+            IEnumerable<string> allowedExtensions = isImageFolder ? ImageExtensions : _settings.AllowedExtensions;
 
             if (!allowedExtensions.Contains(extension))
                 throw new BadRequestException($"File type {extension} not allowed. Allowed: {string.Join(", ", allowedExtensions)}");

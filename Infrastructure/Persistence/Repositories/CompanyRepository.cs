@@ -20,4 +20,17 @@ public class CompanyRepository : RepositoryBase<Company>, ICompanyRepository
     {
         return await _dbSet.AnyAsync(c => c.TaxNumber == taxNumber, cancellationToken);
     }
+
+    public async Task<Company?> GetByIdWithIncludesAsync(int id, bool tracking = true, CancellationToken cancellationToken = default)
+    {
+        IQueryable<Company> query = _dbSet
+            .Include(c => c.Recruiters)
+            .Include(c => c.JobPosts)
+            .Include(c => c.CompanyInviteCodes);
+
+        if (!tracking)
+            query = query.AsNoTracking();
+
+        return await query.FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
+    }
 }

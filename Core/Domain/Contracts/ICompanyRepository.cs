@@ -6,4 +6,7 @@ public interface ICompanyRepository : IRepositoryBase<Company>
 {
     Task<Company?> GetByTaxNumberAsync(string taxNumber, CancellationToken cancellationToken = default);
     Task<bool> TaxNumberExistsAsync(string taxNumber, CancellationToken cancellationToken = default);
+
+    /// <param name="tracking">When false, uses no-tracking query (read scenarios).</param>
+    Task<Company?> GetByIdWithIncludesAsync(int id, bool tracking = true, CancellationToken cancellationToken = default);
 }

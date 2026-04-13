@@ -11,7 +11,7 @@ namespace IES.api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+//[Authorize]
 public class InterviewController : ControllerBase
 {
     private readonly IInterviewService _service;

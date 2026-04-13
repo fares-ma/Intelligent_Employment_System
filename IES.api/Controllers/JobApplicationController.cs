@@ -14,7 +14,7 @@ namespace IES.api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+//[Authorize]
 public class JobApplicationController : ControllerBase
 {
     private readonly IJobApplicationService _service;

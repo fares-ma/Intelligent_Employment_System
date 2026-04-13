@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Services.Abstractions;
@@ -15,6 +16,9 @@ namespace Presentation.Controllers;
 [Authorize]
 public class CompanyController : ControllerBase
 {
+    private static readonly string[] AllowedBrandImageExtensions = { ".jpg", ".jpeg", ".png" };
+    private const long MaxBrandImageSize = 5 * 1024 * 1024;
+
     private readonly ICompanyService _companyService;
     private readonly ILogger<CompanyController> _logger;
 
@@ -22,6 +26,53 @@ public class CompanyController : ControllerBase
     {
         _companyService = companyService ?? throw new ArgumentNullException(nameof(companyService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    /// <summary>
+    /// Create a new company (multipart: fields + optional brand image). Open to any caller; recruiter without a company is linked as admin when authenticated.
+    /// </summary>
+    [HttpPost]
+    [AllowAnonymous]
+    [Consumes("multipart/form-data")]
+    [ProducesResponseType(typeof(CompanyProfileDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<CompanyProfileDto>> CreateCompany([FromForm] CreateCompanyForm form)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (form.BrandAsset is { Length: > 0 })
+        {
+            var ext = Path.GetExtension(form.BrandAsset.FileName).ToLowerInvariant();
+            if (!AllowedBrandImageExtensions.Contains(ext))
+                return BadRequest(new { message = $"Brand image must be one of: {string.Join(", ", AllowedBrandImageExtensions)}" });
+            if (form.BrandAsset.Length > MaxBrandImageSize)
+                return BadRequest(new { message = $"Brand image cannot exceed {MaxBrandImageSize / (1024 * 1024)}MB" });
+        }
+
+        var dto = new CreateCompanyRequestDto
+        {
+            Name = form.Name,
+            Industry = form.Industry,
+            Website = form.Website,
+            TaxNumber = form.TaxNumber,
+            Description = form.Description
+        };
+
+        _logger.LogInformation("Create company form submitted (user id: {UserId})", userId ?? "(anonymous)");
+
+        if (form.BrandAsset is { Length: > 0 })
+        {
+            await using var stream = form.BrandAsset.OpenReadStream();
+            var profile = await _companyService.CreateCompanyAsync(userId, dto, stream, form.BrandAsset.FileName);
+            return CreatedAtAction(nameof(GetCompanyProfile), new { companyId = profile.Id }, profile);
+        }
+
+        var created = await _companyService.CreateCompanyAsync(userId, dto, null, null);
+        return CreatedAtAction(nameof(GetCompanyProfile), new { companyId = created.Id }, created);
     }
 
     /// <summary>

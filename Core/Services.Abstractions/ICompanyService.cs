@@ -17,6 +17,12 @@ public interface ICompanyService
     Task<CompanyProfileDto> GetCompanyProfileAsync(string companyId);
 
     /// <summary>
+    /// Create a new company (optional brand image). If <paramref name="userId"/> is a recruiter without a company, links them as admin.
+    /// Otherwise creates a standalone company record (e.g. anonymous or candidate callers).
+    /// </summary>
+    Task<CompanyProfileDto> CreateCompanyAsync(string? userId, CreateCompanyRequestDto request, Stream? brandAssetStream, string? brandAssetFileName);
+
+    /// <summary>
     /// Update company information (name, industry, website, description)
     /// Only admin of the company can update
     /// </summary>
