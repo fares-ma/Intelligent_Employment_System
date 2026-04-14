@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Services.Abstractions;
 using Services.Abstractions.DTOs.Company;
+using Services.Abstractions.DTOs.InviteCode;
 
 namespace Presentation.Controllers;
 
@@ -20,12 +21,25 @@ public class CompanyController : ControllerBase
     private const long MaxBrandImageSize = 5 * 1024 * 1024;
 
     private readonly ICompanyService _companyService;
+    private readonly IInviteCodeService _inviteCodeService;
     private readonly ILogger<CompanyController> _logger;
 
-    public CompanyController(ICompanyService companyService, ILogger<CompanyController> logger)
+    public CompanyController(ICompanyService companyService, IInviteCodeService inviteCodeService, ILogger<CompanyController> logger)
     {
         _companyService = companyService ?? throw new ArgumentNullException(nameof(companyService));
+        _inviteCodeService = inviteCodeService ?? throw new ArgumentNullException(nameof(inviteCodeService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    public class GenerateInviteCodeRequest
+    {
+        public int MaxUses { get; set; } = 5;
+        public int? ValidDaysFromNow { get; set; } = 30;
+    }
+
+    public class GenerateInviteCodeResponse
+    {
+        public string Code { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -194,6 +208,90 @@ public class CompanyController : ControllerBase
             _logger.LogError(ex, "Error getting active invitations count for company {CompanyId}", companyId);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Generate a new recruiter invite code for the company
+    /// Only company admin can generate invite codes
+    /// </summary>
+    [HttpPost("{companyId}/invite-codes")]
+    [ProducesResponseType(typeof(GenerateInviteCodeResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<GenerateInviteCodeResponse>> GenerateInviteCode(string companyId, [FromBody] GenerateInviteCodeRequest request)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized();
+        }
+
+        if (!int.TryParse(companyId, out var parsedCompanyId))
+        {
+            return BadRequest(new { message = "Invalid company id." });
+        }
+
+        // Reuse existing admin authorization rules from company service.
+        await _companyService.GetActiveInvitationsCountAsync(companyId, userId);
+
+        var maxUses = request?.MaxUses ?? 5;
+        var validDays = request?.ValidDaysFromNow;
+        var code = await _inviteCodeService.GenerateAsync(parsedCompanyId, userId, maxUses, validDays);
+
+        return CreatedAtAction(nameof(GetInviteCodes), new { companyId }, new GenerateInviteCodeResponse { Code = code });
+    }
+
+    /// <summary>
+    /// List active recruiter invite codes for the company
+    /// Only company admin can list invite codes
+    /// </summary>
+    [HttpGet("{companyId}/invite-codes")]
+    [ProducesResponseType(typeof(IEnumerable<InviteCodeDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<IEnumerable<InviteCodeDto>>> GetInviteCodes(string companyId)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized();
+        }
+
+        if (!int.TryParse(companyId, out var parsedCompanyId))
+        {
+            return BadRequest(new { message = "Invalid company id." });
+        }
+
+        // Reuse existing admin authorization rules from company service.
+        await _companyService.GetActiveInvitationsCountAsync(companyId, userId);
+
+        var codes = await _inviteCodeService.GetActiveCodesAsync(parsedCompanyId);
+        return Ok(codes);
+    }
+
+    /// <summary>
+    /// Revoke an active recruiter invite code
+    /// Only company admin can revoke invite codes
+    /// </summary>
+    [HttpDelete("{companyId}/invite-codes/{codeId:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RevokeInviteCode(string companyId, int codeId)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized();
+        }
+
+        // Reuse existing admin authorization rules from company service.
+        await _companyService.GetActiveInvitationsCountAsync(companyId, userId);
+
+        await _inviteCodeService.RevokeAsync(codeId);
+        return NoContent();
     }
 }
 
