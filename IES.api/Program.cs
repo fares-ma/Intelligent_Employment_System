@@ -181,6 +181,9 @@ namespace IES.api
             builder.Services.AddScoped<INotificationPusher, Infrastructure.Presentation.Services.SignalRNotificationPusher>();
             builder.Services.AddScoped<IEmailService, EmailService>();
             builder.Services.AddScoped<IDashboardService, DashboardService>();
+            builder.Services.AddScoped<IMessageService, Core.Services.MessageService>();
+            builder.Services.AddScoped<IActivityLogService, Core.Services.ActivityLogService>();
+            builder.Services.AddScoped<IAnalyticsService, Core.Services.AnalyticsService>();
 
             // ── Configuration for FileStorage ──
             builder.Services.Configure<Shared.Configuration.FileStorageSettings>(
@@ -299,8 +302,9 @@ namespace IES.api
 
             // ── SignalR Hub endpoints ──
             // Uncomment when hub classes are created:
-            // app.MapHub<Presentation.Hubs.InterviewHub>("/hubs/interview");
+            app.MapHub<Presentation.Hubs.InterviewHub>("/hubs/interview");
             app.MapHub<Presentation.Hubs.NotificationHub>("/hubs/notifications");
+            app.MapHub<Presentation.Hubs.ChatHub>("/hubs/chat");
 
             app.Run();
         }

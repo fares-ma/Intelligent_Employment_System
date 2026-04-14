@@ -6,7 +6,7 @@ using System.Security.Claims;
 
 namespace IES.api.Controllers;
 
-//[Authorize]
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
@@ -64,6 +64,21 @@ public class ExperienceController : ControllerBase
             var experience = await _experienceService.GetExperienceAsync(candidateId, experienceId);
             return Ok(experience);
         }
+        catch (Exception ex) when (ex is ArgumentException || ex is Domain.Exceptions.BadRequestException)
+        {
+            _logger.LogWarning(ex, "Bad request retrieving experience {ExperienceId}", experienceId);
+            return BadRequest(ex.Message);
+        }
+        catch (Domain.Exceptions.NotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Experience not found: {ExperienceId}", experienceId);
+            return NotFound(ex.Message);
+        }
+        catch (Domain.Exceptions.ForbiddenException ex)
+        {
+            _logger.LogWarning(ex, "Forbidden retrieving experience {ExperienceId}", experienceId);
+            return StatusCode(403, ex.Message);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving experience {ExperienceId}", experienceId);
@@ -120,10 +135,20 @@ public class ExperienceController : ControllerBase
             var experience = await _experienceService.UpdateExperienceAsync(candidateId, experienceId, request);
             return Ok(experience);
         }
-        catch (ArgumentException ex)
+        catch (Exception ex) when (ex is ArgumentException || ex is Domain.Exceptions.BadRequestException)
         {
             _logger.LogWarning(ex, "Bad request updating experience");
             return BadRequest(ex.Message);
+        }
+        catch (Domain.Exceptions.NotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Experience not found: {ExperienceId}", experienceId);
+            return NotFound(ex.Message);
+        }
+        catch (Domain.Exceptions.ForbiddenException ex)
+        {
+            _logger.LogWarning(ex, "Forbidden updating experience {ExperienceId}", experienceId);
+            return StatusCode(403, ex.Message);
         }
         catch (Exception ex)
         {
@@ -149,6 +174,21 @@ public class ExperienceController : ControllerBase
 
             await _experienceService.DeleteExperienceAsync(candidateId, experienceId);
             return NoContent();
+        }
+        catch (Exception ex) when (ex is ArgumentException || ex is Domain.Exceptions.BadRequestException)
+        {
+            _logger.LogWarning(ex, "Bad request deleting experience");
+            return BadRequest(ex.Message);
+        }
+        catch (Domain.Exceptions.NotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Experience not found: {ExperienceId}", experienceId);
+            return NotFound(ex.Message);
+        }
+        catch (Domain.Exceptions.ForbiddenException ex)
+        {
+            _logger.LogWarning(ex, "Forbidden deleting experience {ExperienceId}", experienceId);
+            return StatusCode(403, ex.Message);
         }
         catch (Exception ex)
         {

@@ -6,7 +6,7 @@ using System.Security.Claims;
 
 namespace IES.api.Controllers;
 
-//[Authorize]
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
@@ -64,6 +64,16 @@ public class SkillController : ControllerBase
             var skill = await _skillService.GetSkillAsync(candidateId, skillId);
             return Ok(skill);
         }
+        catch (Exception ex) when (ex is ArgumentException || ex is Domain.Exceptions.BadRequestException)
+        {
+            _logger.LogWarning(ex, "Bad request retrieving skill {SkillId}", skillId);
+            return BadRequest(ex.Message);
+        }
+        catch (Domain.Exceptions.NotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Skill not found: {SkillId}", skillId);
+            return NotFound(ex.Message);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving skill {SkillId}", skillId);
@@ -89,7 +99,7 @@ public class SkillController : ControllerBase
             var skill = await _skillService.AddSkillAsync(candidateId, request);
             return CreatedAtAction(nameof(GetSkill), new { skillId = skill.Id }, skill);
         }
-        catch (ArgumentException ex)
+        catch (Exception ex) when (ex is ArgumentException || ex is Domain.Exceptions.BadRequestException)
         {
             _logger.LogWarning(ex, "Bad request adding skill");
             return BadRequest(ex.Message);
@@ -120,7 +130,7 @@ public class SkillController : ControllerBase
             var skill = await _skillService.UpdateSkillLevelAsync(candidateId, skillId, request);
             return Ok(skill);
         }
-        catch (ArgumentException ex)
+        catch (Exception ex) when (ex is ArgumentException || ex is Domain.Exceptions.BadRequestException)
         {
             _logger.LogWarning(ex, "Bad request updating skill");
             return BadRequest(ex.Message);
@@ -150,6 +160,16 @@ public class SkillController : ControllerBase
             await _skillService.DeleteSkillAsync(candidateId, skillId);
             return NoContent();
         }
+        catch (Exception ex) when (ex is ArgumentException || ex is Domain.Exceptions.BadRequestException)
+        {
+            _logger.LogWarning(ex, "Bad request deleting skill");
+            return BadRequest(ex.Message);
+        }
+        catch (Domain.Exceptions.NotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Skill not found: {SkillId}", skillId);
+            return NotFound(ex.Message);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting skill {SkillId}", skillId);
@@ -176,7 +196,7 @@ public class SkillController : ControllerBase
             var skills = await _skillService.GetSkillsByLevelAsync(candidateId, level);
             return Ok(skills);
         }
-        catch (ArgumentException ex)
+        catch (Exception ex) when (ex is ArgumentException || ex is Domain.Exceptions.BadRequestException)
         {
             _logger.LogWarning(ex, "Bad request getting skills by level");
             return BadRequest(ex.Message);

@@ -33,6 +33,8 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<CompanyInviteCode> CompanyInviteCodes => Set<CompanyInviteCode>();
     public DbSet<CandidateEducation> CandidateEducations => Set<CandidateEducation>();
     public DbSet<CandidateExperience> CandidateExperiences => Set<CandidateExperience>();
+    public DbSet<Message> Messages => Set<Message>();
+    public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -40,5 +42,18 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
         // Apply all IEntityTypeConfiguration from this assembly
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+
+        // Fix cascade delete paths for Message
+        builder.Entity<Message>()
+            .HasOne(m => m.Sender)
+            .WithMany()
+            .HasForeignKey(m => m.SenderId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Entity<Message>()
+            .HasOne(m => m.Receiver)
+            .WithMany()
+            .HasForeignKey(m => m.ReceiverId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

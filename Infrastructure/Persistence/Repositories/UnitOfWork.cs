@@ -25,7 +25,9 @@ public class UnitOfWork : IUnitOfWork
     private ICandidateEducationRepository? _candidateEducations;
     private ICandidateExperienceRepository? _candidateExperiences;
     private ICandidateAssessmentRepository? _candidateAssessments;
-
+    private IMessageRepository? _messages;
+    private IActivityLogRepository? _activityLogs;
+    private IAnalyticsRepository? _analytics;
     public UnitOfWork(AppDbContext context)
     {
         _context = context;
@@ -75,6 +77,15 @@ public class UnitOfWork : IUnitOfWork
 
     public ICandidateAssessmentRepository CandidateAssessments =>
         _candidateAssessments ??= new CandidateAssessmentRepository(_context);
+
+    public IMessageRepository Messages =>
+        _messages ??= new MessageRepository(_context);
+
+    public IActivityLogRepository ActivityLogs =>
+        _activityLogs ??= new ActivityLogRepository(_context);
+
+    public IAnalyticsRepository Analytics =>
+        _analytics ??= new AnalyticsRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

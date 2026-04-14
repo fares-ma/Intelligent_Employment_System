@@ -61,7 +61,10 @@ public class ExperienceService : IExperienceService
 
     public async Task<CandidateExperienceDto> GetExperienceAsync(string candidateId, string experienceId)
     {
-        var experience = await _unitOfWork.CandidateExperiences.GetByIdAsync(experienceId);
+        if (!int.TryParse(experienceId, out int id))
+            throw new BadRequestException("Invalid ID format");
+            
+        var experience = await _unitOfWork.CandidateExperiences.GetByIdAsync(id);
         if (experience is null)
             throw new NotFoundException($"Experience record not found");
 
@@ -77,7 +80,10 @@ public class ExperienceService : IExperienceService
         
         ValidateUpdateExperienceInput(request);
 
-        var experience = await _unitOfWork.CandidateExperiences.GetByIdAsync(experienceId);
+        if (!int.TryParse(experienceId, out int id))
+            throw new BadRequestException("Invalid ID format");
+            
+        var experience = await _unitOfWork.CandidateExperiences.GetByIdAsync(id);
         if (experience is null)
             throw new NotFoundException($"Experience record not found");
 
@@ -98,7 +104,10 @@ public class ExperienceService : IExperienceService
 
     public async Task DeleteExperienceAsync(string candidateId, string experienceId)
     {
-        var experience = await _unitOfWork.CandidateExperiences.GetByIdAsync(experienceId);
+        if (!int.TryParse(experienceId, out int id))
+            throw new BadRequestException("Invalid ID format");
+            
+        var experience = await _unitOfWork.CandidateExperiences.GetByIdAsync(id);
         if (experience is null)
             throw new NotFoundException($"Experience record not found");
 

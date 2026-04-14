@@ -11,7 +11,7 @@ namespace IES.api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-//[Authorize]
+[Authorize]
 public class InterviewController : ControllerBase
 {
     private readonly IInterviewService _service;
@@ -50,7 +50,7 @@ public class InterviewController : ControllerBase
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning("Authorization error in ScheduleInterview: {Message}", ex.Message);
-            return Forbid("You don't have permission to schedule interviews for this job posting");
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "You don't have permission to schedule interviews for this job posting" });
         }
         catch (Exception ex)
         {
@@ -123,7 +123,7 @@ public class InterviewController : ControllerBase
             var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             // Candidates can only view their own interviews
             if (User.IsInRole("Candidate") && currentUserId != candidateId)
-                return Forbid("You can only view your own interviews");
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "You can only view your own interviews" });
 
             var result = await _service.GetCandidateInterviewsAsync(candidateId, pageNumber, pageSize);
             return Ok(result);
@@ -233,7 +233,7 @@ public class InterviewController : ControllerBase
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning("Authorization error in UpdateInterview: {Message}", ex.Message);
-            return Forbid("You don't have permission to update this interview");
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "You don't have permission to update this interview" });
         }
         catch (ArgumentException ex)
         {
@@ -269,7 +269,7 @@ public class InterviewController : ControllerBase
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning("Authorization error in CancelInterview: {Message}", ex.Message);
-            return Forbid("You don't have permission to cancel this interview");
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "You don't have permission to cancel this interview" });
         }
         catch (ArgumentException ex)
         {

@@ -99,9 +99,22 @@ public class AssessmentService : IAssessmentService
 
     public async Task<CandidateAssessmentDto> StartAssessmentAsync(int assessmentId, int jobApplicationId, string candidateId)
     {
+        if (jobApplicationId <= 0)
+            throw new BadRequestException("Valid jobApplicationId is required");
+
         var assessment = await _unitOfWork.Assessments.GetWithQuestionsAsync(assessmentId);
         if (assessment == null)
             throw new NotFoundException($"Assessment {assessmentId} not found");
+
+        var jobApplication = await _unitOfWork.JobApplications.GetByIdAsync(jobApplicationId);
+        if (jobApplication == null)
+            throw new NotFoundException($"Job application {jobApplicationId} not found");
+
+        if (jobApplication.CandidateId != candidateId)
+            throw new UnauthorizedAccessException("You can only start assessments for your own job applications");
+
+        if (jobApplication.JobPostId != assessment.JobPostId)
+            throw new BadRequestException("Job application does not match this assessment's job posting");
 
         // Check if already started
         var existing = await _unitOfWork.CandidateAssessments.GetByCandidateAndAssessmentAsync(candidateId, assessmentId);

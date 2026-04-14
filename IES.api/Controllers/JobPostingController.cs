@@ -6,7 +6,7 @@ using System.Security.Claims;
 
 namespace IES.api.Controllers;
 
-//[Authorize]
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
@@ -25,6 +25,7 @@ public class JobPostingController : ControllerBase
     /// Get all active job postings with pagination
     /// </summary>
     [HttpGet]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(IEnumerable<JobPostingDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -51,6 +52,7 @@ public class JobPostingController : ControllerBase
     /// Get a specific job posting
     /// </summary>
     [HttpGet("{id}")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(JobPostingDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -107,13 +109,17 @@ public class JobPostingController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> CreateJobPosting([FromQuery] int companyId, [FromBody] CreateJobPostingDto request)
+    public async Task<IActionResult> CreateJobPosting([FromBody] CreateJobPostingDto request)
     {
         try
         {
             var recruiterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(recruiterId))
                 return Unauthorized("User ID not found in token");
+
+            var companyIdClaim = User.FindFirst("CompanyId")?.Value;
+            if (!int.TryParse(companyIdClaim, out int companyId))
+                return Unauthorized("Company ID not found in token");
 
             var jobPosting = await _jobPostingService.CreateJobPostingAsync(companyId, recruiterId, request);
             return CreatedAtAction(nameof(GetJobPosting), new { id = jobPosting.Id }, jobPosting);
@@ -212,6 +218,7 @@ public class JobPostingController : ControllerBase
     /// Search job postings by title, description, or location
     /// </summary>
     [HttpGet("search/{searchTerm}")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(IEnumerable<JobPostingDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -238,6 +245,7 @@ public class JobPostingController : ControllerBase
     /// Get job postings by required skill
     /// </summary>
     [HttpGet("skill/{skillId}")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(IEnumerable<JobPostingDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -264,6 +272,7 @@ public class JobPostingController : ControllerBase
     /// Get job postings by employment type
     /// </summary>
     [HttpGet("type/{employmentType}")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(IEnumerable<JobPostingDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]

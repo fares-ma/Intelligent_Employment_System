@@ -1,5 +1,6 @@
 using Domain.Contracts;
 using Domain.Enums;
+using Domain.Exceptions;
 using Domain.Models;
 using Microsoft.Extensions.Logging;
 using Services.Abstractions;
@@ -44,7 +45,7 @@ public class JobApplicationService : IJobApplicationService
         // Check if candidate already applied
         var alreadyApplied = await _unitOfWork.JobApplications.ExistsAsync(candidateId, request.JobPostId);
         if (alreadyApplied)
-            throw new ArgumentException("You have already applied for this job posting");
+            throw new ConflictException("You have already applied for this job posting");
 
         // Verify resume exists and belongs to candidate
         var resume = await _unitOfWork.Resumes.GetByIdAsync(request.ResumeId);

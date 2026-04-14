@@ -66,9 +66,24 @@ public class AssessmentsController : ControllerBase
     [ProducesResponseType(typeof(CandidateAssessmentDto), StatusCodes.Status200OK)]
     public async Task<ActionResult<CandidateAssessmentDto>> StartAssessment(int id, [FromQuery] int jobApplicationId)
     {
-        var candidateId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value!;
-        var result = await _assessmentService.StartAssessmentAsync(id, jobApplicationId, candidateId);
-        return Ok(result);
+        try
+        {
+            var candidateId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value!;
+            var result = await _assessmentService.StartAssessmentAsync(id, jobApplicationId, candidateId);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (Domain.Exceptions.NotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex) when (ex is ArgumentException || ex is Domain.Exceptions.BadRequestException)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPost("{id}/submit")]

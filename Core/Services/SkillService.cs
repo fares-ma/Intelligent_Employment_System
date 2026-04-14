@@ -59,7 +59,8 @@ public class SkillService : ISkillService
         {
             CandidateId = candidateId,
             SkillId = skill.Id,
-            Level = request.Level
+            Level = request.Level,
+            Skill = skill
         };
 
         // This is tricky - we need to add to the candidate's CandidateSkills collection
@@ -161,7 +162,7 @@ public class SkillService : ISkillService
         return new CandidateSkillDto
         {
             Id = candidateSkill.SkillId.ToString(),
-            SkillName = candidateSkill.Skill.Name,
+            SkillName = candidateSkill.Skill?.Name ?? string.Empty,
             Level = candidateSkill.Level,
             CreatedAt = DateTime.UtcNow
         };

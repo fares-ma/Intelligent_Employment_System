@@ -74,7 +74,10 @@ public class EducationService : IEducationService
     {
         _logger.LogInformation("Fetching education {EducationId} for candidate {CandidateId}", educationId, candidateId);
 
-        var education = await _unitOfWork.CandidateEducations.GetByIdAsync(educationId);
+        if (!int.TryParse(educationId, out int id))
+            throw new BadRequestException("Invalid ID format");
+            
+        var education = await _unitOfWork.CandidateEducations.GetByIdAsync(id);
         if (education is null)
         {
             throw new NotFoundException($"Education record with ID '{educationId}' not found");
@@ -97,7 +100,10 @@ public class EducationService : IEducationService
         ValidateUpdateEducationInput(request);
 
         // Get education record
-        var education = await _unitOfWork.CandidateEducations.GetByIdAsync(educationId);
+        if (!int.TryParse(educationId, out int id))
+            throw new BadRequestException("Invalid ID format");
+            
+        var education = await _unitOfWork.CandidateEducations.GetByIdAsync(id);
         if (education is null)
         {
             throw new NotFoundException($"Education record with ID '{educationId}' not found");
@@ -129,7 +135,10 @@ public class EducationService : IEducationService
         _logger.LogInformation("Deleting education {EducationId} for candidate {CandidateId}", educationId, candidateId);
 
         // Get education record
-        var education = await _unitOfWork.CandidateEducations.GetByIdAsync(educationId);
+        if (!int.TryParse(educationId, out int id))
+            throw new BadRequestException("Invalid ID format");
+            
+        var education = await _unitOfWork.CandidateEducations.GetByIdAsync(id);
         if (education is null)
         {
             throw new NotFoundException($"Education record with ID '{educationId}' not found");

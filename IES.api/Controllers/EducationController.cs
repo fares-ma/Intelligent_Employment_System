@@ -6,7 +6,7 @@ using System.Security.Claims;
 
 namespace IES.api.Controllers;
 
-//[Authorize]
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
@@ -64,6 +64,21 @@ public class EducationController : ControllerBase
             var education = await _educationService.GetEducationAsync(candidateId, educationId);
             return Ok(education);
         }
+        catch (Exception ex) when (ex is ArgumentException || ex is Domain.Exceptions.BadRequestException)
+        {
+            _logger.LogWarning(ex, "Bad request retrieving education {EducationId}", educationId);
+            return BadRequest(ex.Message);
+        }
+        catch (Domain.Exceptions.NotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Education not found: {EducationId}", educationId);
+            return NotFound(ex.Message);
+        }
+        catch (Domain.Exceptions.ForbiddenException ex)
+        {
+            _logger.LogWarning(ex, "Forbidden retrieving education {EducationId}", educationId);
+            return StatusCode(403, ex.Message);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving education {EducationId}", educationId);
@@ -120,10 +135,20 @@ public class EducationController : ControllerBase
             var education = await _educationService.UpdateEducationAsync(candidateId, educationId, request);
             return Ok(education);
         }
-        catch (ArgumentException ex)
+        catch (Exception ex) when (ex is ArgumentException || ex is Domain.Exceptions.BadRequestException)
         {
             _logger.LogWarning(ex, "Bad request updating education");
             return BadRequest(ex.Message);
+        }
+        catch (Domain.Exceptions.NotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Education not found: {EducationId}", educationId);
+            return NotFound(ex.Message);
+        }
+        catch (Domain.Exceptions.ForbiddenException ex)
+        {
+            _logger.LogWarning(ex, "Forbidden updating education {EducationId}", educationId);
+            return StatusCode(403, ex.Message);
         }
         catch (Exception ex)
         {
@@ -149,6 +174,21 @@ public class EducationController : ControllerBase
 
             await _educationService.DeleteEducationAsync(candidateId, educationId);
             return NoContent();
+        }
+        catch (Exception ex) when (ex is ArgumentException || ex is Domain.Exceptions.BadRequestException)
+        {
+            _logger.LogWarning(ex, "Bad request deleting education");
+            return BadRequest(ex.Message);
+        }
+        catch (Domain.Exceptions.NotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Education not found: {EducationId}", educationId);
+            return NotFound(ex.Message);
+        }
+        catch (Domain.Exceptions.ForbiddenException ex)
+        {
+            _logger.LogWarning(ex, "Forbidden deleting education {EducationId}", educationId);
+            return StatusCode(403, ex.Message);
         }
         catch (Exception ex)
         {

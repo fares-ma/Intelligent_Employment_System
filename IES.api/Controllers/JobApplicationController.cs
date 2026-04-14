@@ -14,7 +14,7 @@ namespace IES.api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-//[Authorize]
+[Authorize]
 public class JobApplicationController : ControllerBase
 {
     private readonly IJobApplicationService _service;
@@ -90,7 +90,7 @@ public class JobApplicationController : ControllerBase
             var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             // Candidates can only view their own applications
             if (User.IsInRole("Candidate") && currentUserId != candidateId)
-                return Forbid("You can only view your own applications");
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "You can only view your own applications" });
 
             var result = await _service.GetCandidateApplicationsAsync(candidateId, pageNumber, pageSize);
             return Ok(result);
@@ -143,8 +143,23 @@ public class JobApplicationController : ControllerBase
     {
         try
         {
-            // Fetch applications without pagination for export
-            var applications = await _service.GetJobApplicationsAsync(jobPostId, 1, 10000); // Hacky way for all for MVP
+            // Export all applications in batches to respect service pagination limits.
+            const int pageSize = 100;
+            var pageNumber = 1;
+            var applications = new List<JobApplicationDto>();
+
+            while (true)
+            {
+                var page = (await _service.GetJobApplicationsAsync(jobPostId, pageNumber, pageSize)).ToList();
+                if (page.Count == 0)
+                    break;
+
+                applications.AddRange(page);
+                if (page.Count < pageSize)
+                    break;
+
+                pageNumber++;
+            }
 
             using var memoryStream = new MemoryStream();
             using var streamWriter = new StreamWriter(memoryStream);
@@ -241,7 +256,7 @@ public class JobApplicationController : ControllerBase
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning("Authorization error in UpdateApplicationStatus: {Message}", ex.Message);
-            return Forbid("You don't have permission to update this application");
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "You don't have permission to update this application" });
         }
         catch (ArgumentException ex)
         {
@@ -273,7 +288,7 @@ public class JobApplicationController : ControllerBase
         catch (UnauthorizedAccessException ex)
         {
             _logger.LogWarning("Authorization error in WithdrawApplication: {Message}", ex.Message);
-            return Forbid("You can only withdraw your own applications");
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "You can only withdraw your own applications" });
         }
         catch (ArgumentException ex)
         {

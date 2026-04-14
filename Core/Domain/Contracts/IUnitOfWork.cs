@@ -20,5 +20,8 @@ public interface IUnitOfWork : IDisposable
     ICandidateEducationRepository CandidateEducations { get; }
     ICandidateExperienceRepository CandidateExperiences { get; }
     ICandidateAssessmentRepository CandidateAssessments { get; }
+    IMessageRepository Messages { get; }
+    IActivityLogRepository ActivityLogs { get; }
+    IAnalyticsRepository Analytics { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
