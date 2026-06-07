@@ -1,0 +1,54 @@
+{
+  "title": "Senior .NET Developer",
+  "description": "We are looking for an experienced .NET developer to join our engineering team.",
+  "requirements": "Strong experience in C#, ASP.NET Core, and SQL Server",
+  "salaryRange": "15000-25000 EGP",
+  "location": "Cairo, Egypt",
+  "applicationDeadline": "2026-08-01T00:00:00Z",
+  "requiredSkillIds": [],
+  "department": "Engineering",
+  "employmentType": "FullTime",
+  "gpa": 2.5,
+  "gpaPriority": "Low",
+  "experienceMinYears": 3,
+  "experienceMaxYears": 7,
+  "experiencePriority": "High",
+  "degrees": [
+    {
+      "degreeName": "Bachelor of Computer Science",
+      "degreePriority": "High"
+    },
+    {
+      "degreeName": "Bachelor of Information Technology",
+      "degreePriority": "Medium"
+    }
+  ],
+  "roles": [
+    {
+      "roleName": "Backend Developer",
+      "rolePriority": "High"
+    },
+    {
+      "roleName": "Full Stack Developer",
+      "rolePriority": "Medium"
+    }
+  ],
+  "skills": [
+    {
+      "skillName": "C#",
+      "skillPriority": "High"
+    },
+    {
+      "skillName": "ASP.NET Core",
+      "skillPriority": "High"
+    },
+    {
+      "skillName": "SQL Server",
+      "skillPriority": "Medium"
+    },
+    {
+      "skillName": "Docker",
+      "skillPriority": "Low"
+    }
+  ]
+}
