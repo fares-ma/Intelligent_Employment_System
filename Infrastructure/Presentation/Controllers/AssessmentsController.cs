@@ -31,16 +31,6 @@ public class AssessmentsController : ControllerBase
         return CreatedAtAction(nameof(GetAssessment), new { id = result.Id }, result);
     }
 
-    [HttpPost("job/{jobPostId}/generate")]
-    [Authorize(Roles = "Admin,Recruiter")]
-    [ProducesResponseType(typeof(AssessmentDto), StatusCodes.Status201Created)]
-    public async Task<ActionResult<AssessmentDto>> GenerateAiAssessment(int jobPostId, [FromQuery] int questionCount = 5)
-    {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value!;
-        var result = await _assessmentService.GenerateAiAssessmentAsync(jobPostId, questionCount, userId);
-        return CreatedAtAction(nameof(GetAssessment), new { id = result.Id }, result);
-    }
-
     [HttpGet("{id}")]
     [Authorize]
     [ProducesResponseType(typeof(AssessmentDto), StatusCodes.Status200OK)]

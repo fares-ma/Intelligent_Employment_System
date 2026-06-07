@@ -22,7 +22,7 @@ public interface ICandidateService
     Task UpdateSkillsAsync(string candidateId, UpdateSkillsDto dto);
 
     /// <summary>
-    /// Upload resume file with validation and optional AI processing
+    /// Upload resume file with validation
     /// </summary>
     Task<ResumeDto> UploadResumeAsync(string candidateId, string fileName, Stream fileStream);
 
@@ -30,11 +30,6 @@ public interface ICandidateService
     /// Delete resume
     /// </summary>
     Task DeleteResumeAsync(string candidateId, int resumeId);
-
-    /// <summary>
-    /// Generate AI CV from resume
-    /// </summary>
-    Task<string> GenerateCvAsync(string candidateId, int resumeId);
 
     /// <summary>
     /// Get candidate's job applications

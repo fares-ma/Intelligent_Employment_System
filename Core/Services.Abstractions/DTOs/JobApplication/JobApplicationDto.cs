@@ -62,6 +62,10 @@ public class JobApplicationDto
     /// </summary>
     public decimal? MatchScore { get; set; }
 
+    public string? FitStatus { get; set; }
+
+    public string? AiScoringStatus { get; set; }
+
     /// <summary>
     /// Recruiter rating (1-5 stars)
     /// </summary>

@@ -10,6 +10,7 @@ using Persistence.Data;
 using Persistence.Repositories;
 using Presentation.Middleware;
 using IES.api.Authentication;
+using IES.api.Extensions;
 using Services;
 using Services.Abstractions;
 using Services.Mapping;
@@ -151,7 +152,8 @@ namespace IES.api
 
             // ── Background Services ──
             builder.Services.AddHostedService<Services.Background.JobExpiryBackgroundService>();
-            builder.Services.AddHostedService<Services.Background.AiScoringRetryService>();
+            builder.Services.AddHostedService<Services.Background.TalentXScoringPollingService>();
+            builder.Services.AddTalentXIntegration(builder.Configuration);
 
             // ── Repository & UnitOfWork DI ──
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -168,7 +170,6 @@ namespace IES.api
             builder.Services.AddScoped<ICompanyService, CompanyService>();
             builder.Services.AddScoped<ICandidateService, CandidateService>();
             builder.Services.AddScoped<IFileStorageService, FileStorageService>();
-            builder.Services.AddScoped<IAiServiceClient, AiServiceClient>();
             builder.Services.AddScoped<IInviteCodeService, InviteCodeService>();
             builder.Services.AddScoped<IEducationService, EducationService>();
             builder.Services.AddScoped<IExperienceService, ExperienceService>();
@@ -291,14 +292,20 @@ namespace IES.api
 
             app.UseForwardedHeaders(forwardedHeadersOptions);
 
-            app.UseHttpsRedirection();
+            // HTTPS redirection disabled — TalentX AI (Python) sends POST over HTTP
+            // and most clients don't follow 307 redirects for POST, causing ConnectionResetError.
+            // app.UseHttpsRedirection();
 
-            app.UseCors("AllowClient");
+            app.UseCors("AllowAll");
 
             app.UseAuthentication();
             app.UseAuthorization();
 
             app.MapControllers();
+
+            // ── Health check endpoint (keep app warm on free hosting) ──
+            app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
+                .AllowAnonymous();
 
             // ── SignalR Hub endpoints ──
             // Uncomment when hub classes are created:

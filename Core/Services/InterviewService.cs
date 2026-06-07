@@ -46,12 +46,17 @@ public class InterviewService : IInterviewService
         if (interviewType == InterviewType.Live && string.IsNullOrWhiteSpace(request.MeetingLink))
             throw new ArgumentException("Meeting link is required for Live interviews");
 
+        // Normalize ScheduledAt to UTC (frontend may send local time)
+        var scheduledAtUtc = request.ScheduledAt.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(request.ScheduledAt, DateTimeKind.Utc)
+            : request.ScheduledAt.ToUniversalTime();
+
         var interview = new Interview
         {
             JobApplicationId = request.JobApplicationId,
             InterviewType = interviewType,
             Status = InterviewStatus.Scheduled,
-            ScheduledAt = request.ScheduledAt,
+            ScheduledAt = scheduledAtUtc,
             DurationMinutes = request.DurationMinutes,
             MeetingLink = request.MeetingLink,
             AiQuestions = request.AiQuestions,
@@ -281,7 +286,12 @@ public class InterviewService : IInterviewService
         if (string.IsNullOrWhiteSpace(request.InterviewType))
             throw new ArgumentException("Interview type is required");
 
-        if (request.ScheduledAt <= DateTime.UtcNow)
+        // Normalize ScheduledAt to UTC — frontend may send local time (Kind == Unspecified)
+        var scheduledUtc = request.ScheduledAt.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(request.ScheduledAt, DateTimeKind.Utc)
+            : request.ScheduledAt.ToUniversalTime();
+
+        if (scheduledUtc <= DateTime.UtcNow.AddMinutes(-1))
             throw new ArgumentException("Interview must be scheduled for a future date");
 
         if (request.DurationMinutes < 5 || request.DurationMinutes > 480)

@@ -49,6 +49,41 @@ public class JobPost
 
     public DateTime? UpdatedAt { get; set; }
 
+    // ── New fields for frontend job creation form ──
+
+    /// <summary>
+    /// Department name (e.g. "Product", "Engineering")
+    /// </summary>
+    public string? Department { get; set; }
+
+    /// <summary>
+    /// Minimum GPA requirement (0-4)
+    /// </summary>
+    public decimal? GPA { get; set; }
+
+    public string? GPAPriority { get; set; }
+
+    public int? ExperienceMinYears { get; set; }
+
+    public int? ExperienceMaxYears { get; set; }
+
+    public string? ExperiencePriority { get; set; }
+
+    /// <summary>
+    /// Required degrees stored as JSON array: [{"degreeName":"...","degreePriority":"..."}]
+    /// </summary>
+    public string? DegreesJson { get; set; }
+
+    /// <summary>
+    /// Required roles stored as JSON array: [{"roleName":"...","rolePriority":"..."}]
+    /// </summary>
+    public string? RolesJson { get; set; }
+
+    /// <summary>
+    /// Required skills stored as JSON array: [{"skillName":"...","skillPriority":"..."}]
+    /// </summary>
+    public string? SkillsJson { get; set; }
+
     // Navigation properties
     public ICollection<JobPostSkill> JobPostSkills { get; set; } = new List<JobPostSkill>();
     public ICollection<JobApplication> JobApplications { get; set; } = new List<JobApplication>();

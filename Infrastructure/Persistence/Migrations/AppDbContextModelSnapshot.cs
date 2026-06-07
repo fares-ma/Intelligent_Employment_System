@@ -545,6 +545,23 @@ namespace Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("AiScoringCompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AiScoringErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("AiScoringRequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AiScoringStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasDefaultValue("NotStarted");
+
                     b.Property<DateTime>("AppliedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
@@ -561,8 +578,16 @@ namespace Persistence.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("FitStatus")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<int>("JobPostId")
                         .HasColumnType("int");
+
+                    b.Property<string>("LastProcessedIdempotencyKey")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<string>("MatchReport")
                         .HasColumnType("nvarchar(max)");
@@ -570,6 +595,12 @@ namespace Persistence.Migrations
                     b.Property<decimal?>("MatchScore")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("MatchingDetailsJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("RawResumeDataJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RecruiterNotes")
                         .HasColumnType("nvarchar(max)");
@@ -584,6 +615,9 @@ namespace Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("TalentXSentCandidateId")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -602,6 +636,9 @@ namespace Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("JobPostId", "Status");
+
+                    b.HasIndex("TalentXSentCandidateId", "JobPostId")
+                        .HasFilter("[TalentXSentCandidateId] IS NOT NULL");
 
                     b.ToTable("JobApplications");
                 });
@@ -636,6 +673,9 @@ namespace Persistence.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<string>("DegreesJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
@@ -643,12 +683,34 @@ namespace Persistence.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("Department")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("ExperienceMaxYears")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ExperienceMinYears")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExperiencePriority")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<DateTime?>("ExpiryDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("GPA")
+                        .HasPrecision(3, 2)
+                        .HasColumnType("decimal(3,2)");
+
+                    b.Property<string>("GPAPriority")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -667,6 +729,9 @@ namespace Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("RolesJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<decimal?>("SalaryMax")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -674,6 +739,9 @@ namespace Persistence.Migrations
                     b.Property<decimal?>("SalaryMin")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("SkillsJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -805,6 +873,42 @@ namespace Persistence.Migrations
                     b.HasIndex("UserId", "IsRead");
 
                     b.ToTable("Notifications");
+                });
+
+            modelBuilder.Entity("Domain.Models.ProcessedIdempotencyKey", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<int?>("JobApplicationId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ProcessedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("getutcdate()");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasDefaultValue("TalentXWebhook");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.ToTable("ProcessedIdempotencyKeys");
                 });
 
             modelBuilder.Entity("Domain.Models.Question", b =>

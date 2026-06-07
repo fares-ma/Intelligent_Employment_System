@@ -35,6 +35,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<CandidateExperience> CandidateExperiences => Set<CandidateExperience>();
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
+    public DbSet<ProcessedIdempotencyKey> ProcessedIdempotencyKeys => Set<ProcessedIdempotencyKey>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

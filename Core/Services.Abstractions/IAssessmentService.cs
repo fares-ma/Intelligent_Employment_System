@@ -7,7 +7,6 @@ public interface IAssessmentService
 {
     // Recruiter / Admin Operations
     Task<AssessmentDto> CreateAssessmentAsync(CreateAssessmentDto request, string userId);
-    Task<AssessmentDto> GenerateAiAssessmentAsync(int jobPostId, int questionCount, string userId);
     Task<AssessmentDto> GetAssessmentAsync(int assessmentId);
     Task<IEnumerable<AssessmentDto>> GetAssessmentsForJobAsync(int jobPostId);
     

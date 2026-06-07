@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Domain.Contracts;
+using Domain.Enums;
 using Domain.Models;
 using Microsoft.Extensions.Logging;
 using Services.Abstractions;
@@ -14,6 +16,13 @@ public class JobPostingService : IJobPostingService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<JobPostingService> _logger;
+
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = false
+    };
 
     public JobPostingService(IUnitOfWork unitOfWork, ILogger<JobPostingService> logger)
     {
@@ -57,7 +66,6 @@ public class JobPostingService : IJobPostingService
     public async Task<JobPostingDto> CreateJobPostingAsync(int companyId, string recruiterId, CreateJobPostingDto request)
     {
         _logger.LogInformation("Creating new job posting for company {CompanyId}", companyId);
-        ValidateCreateJobPostingInput(request);
 
         var company = await _unitOfWork.Companies.GetByIdAsync(companyId);
         if (company is null)
@@ -70,21 +78,68 @@ public class JobPostingService : IJobPostingService
         if (recruiter.CompanyId != companyId)
             throw new UnauthorizedAccessException("Recruiter does not belong to this company");
 
+        // Parse employment type
+        var jobType = ParseEmploymentType(request.EmploymentType);
+
+        // Auto-generate title if not provided
+        var title = !string.IsNullOrWhiteSpace(request.Title)
+            ? request.Title
+            : BuildAutoTitle(request);
+
+        // Auto-generate description if not provided
+        var description = !string.IsNullOrWhiteSpace(request.Description)
+            ? request.Description
+            : BuildAutoDescription(request);
+
         var jobPost = new JobPost
         {
-            Title = request.Title,
-            Description = request.Description,
+            Title = title,
+            Description = description,
             CompanyId = companyId,
             CreatedByRecruiterId = recruiterId,
+            JobType = jobType,
             ExpiryDate = request.ApplicationDeadline,
+            Location = request.Location,
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            JobPostSkills = new List<JobPostSkill>()
+            JobPostSkills = new List<JobPostSkill>(),
+
+            // New fields
+            Department = request.Department,
+            GPA = request.GPA,
+            GPAPriority = request.GPAPriority,
+            ExperienceMinYears = request.ExperienceMinYears,
+            ExperienceMaxYears = request.ExperienceMaxYears,
+            ExperiencePriority = request.ExperiencePriority,
+            DegreesJson = request.Degrees.Any()
+                ? JsonSerializer.Serialize(request.Degrees, _jsonOptions)
+                : null,
+            RolesJson = request.Roles.Any()
+                ? JsonSerializer.Serialize(request.Roles, _jsonOptions)
+                : null,
+            SkillsJson = request.Skills.Any()
+                ? JsonSerializer.Serialize(request.Skills, _jsonOptions)
+                : null
         };
 
-        // Add required skills
-        if (request.RequiredSkillIds.Any())
+        // Add skills by ID (legacy) or by name (new format)
+        if (request.Skills.Any())
+        {
+            foreach (var skillDto in request.Skills)
+            {
+                var skill = await GetOrCreateSkillAsync(skillDto.SkillName);
+                if (skill is not null)
+                {
+                    jobPost.JobPostSkills.Add(new JobPostSkill
+                    {
+                        SkillId = skill.Id,
+                        IsRequired = !string.Equals(skillDto.SkillPriority, "None", StringComparison.OrdinalIgnoreCase)
+                    });
+                }
+            }
+        }
+        else if (request.RequiredSkillIds.Any())
         {
             foreach (var skillId in request.RequiredSkillIds)
             {
@@ -106,7 +161,6 @@ public class JobPostingService : IJobPostingService
     public async Task<JobPostingDto> UpdateJobPostingAsync(int jobPostingId, string recruiterId, UpdateJobPostingDto request)
     {
         _logger.LogInformation("Updating job posting {JobPostingId}", jobPostingId);
-        ValidateUpdateJobPostingInput(request);
 
         var jobPost = await _unitOfWork.JobPosts.GetByIdWithSkillsAsync(jobPostingId);
         if (jobPost is null)
@@ -115,8 +169,11 @@ public class JobPostingService : IJobPostingService
         if (jobPost.CreatedByRecruiterId != recruiterId)
             throw new UnauthorizedAccessException("You don't have permission to update this job posting");
 
-        jobPost.Title = request.Title;
-        jobPost.Description = request.Description;
+        if (!string.IsNullOrWhiteSpace(request.Title))
+            jobPost.Title = request.Title;
+        if (!string.IsNullOrWhiteSpace(request.Description))
+            jobPost.Description = request.Description;
+
         jobPost.ExpiryDate = request.ApplicationDeadline;
         if (request.IsActive.HasValue)
             jobPost.IsActive = request.IsActive.Value;
@@ -208,8 +265,11 @@ public class JobPostingService : IJobPostingService
 
         ValidatePagination(pageNumber, pageSize);
 
-        // For now, filter by description since JobPost model doesn't have EmploymentType
-        var jobPosts = await _unitOfWork.JobPosts.FindAsync(jp => jp.IsActive);
+        var jobType = ParseEmploymentType(employmentType);
+
+        var jobPosts = await _unitOfWork.JobPosts.FindAsync(
+            jp => jp.IsActive && jp.JobType == jobType
+        );
 
         return jobPosts
             .Skip((pageNumber - 1) * pageSize)
@@ -219,6 +279,8 @@ public class JobPostingService : IJobPostingService
             .ToList();
     }
 
+    // ── Private helpers ──
+
     private static JobPostingDto MapToDto(JobPost jobPost)
     {
         return new JobPostingDto
@@ -227,8 +289,8 @@ public class JobPostingService : IJobPostingService
             Title = jobPost.Title,
             Description = jobPost.Description,
             Requirements = "",
-            SalaryRange = jobPost.SalaryMin.HasValue && jobPost.SalaryMax.HasValue 
-                ? $"{jobPost.SalaryMin}-{jobPost.SalaryMax} {jobPost.Currency}" 
+            SalaryRange = jobPost.SalaryMin.HasValue && jobPost.SalaryMax.HasValue
+                ? $"{jobPost.SalaryMin}-{jobPost.SalaryMax} {jobPost.Currency}"
                 : null,
             Location = jobPost.Location ?? "",
             EmploymentType = jobPost.JobType.ToString(),
@@ -236,37 +298,115 @@ public class JobPostingService : IJobPostingService
             CompanyName = jobPost.Company?.Name ?? string.Empty,
             IsActive = jobPost.IsActive,
             ApplicationDeadline = jobPost.ExpiryDate,
-            RequiredSkills = jobPost.JobPostSkills?.Select(jps => jps.Skill.Name).ToList() ?? new(),
+            RequiredSkills = jobPost.JobPostSkills?.Select(jps => jps.Skill?.Name ?? "").Where(n => n != "").ToList() ?? new(),
             ApplicationCount = jobPost.JobApplications?.Count ?? 0,
             CreatedAt = jobPost.CreatedAt,
-            UpdatedAt = jobPost.UpdatedAt ?? DateTime.UtcNow
+            UpdatedAt = jobPost.UpdatedAt ?? DateTime.UtcNow,
+
+            // New fields
+            Department = jobPost.Department,
+            GPA = jobPost.GPA,
+            GPAPriority = jobPost.GPAPriority,
+            ExperienceMinYears = jobPost.ExperienceMinYears,
+            ExperienceMaxYears = jobPost.ExperienceMaxYears,
+            ExperiencePriority = jobPost.ExperiencePriority,
+            Degrees = DeserializeJson<List<JobDegreeDto>>(jobPost.DegreesJson) ?? new(),
+            Roles = DeserializeJson<List<JobRoleDto>>(jobPost.RolesJson) ?? new(),
+            Skills = DeserializeJson<List<JobSkillDto>>(jobPost.SkillsJson) ?? new()
         };
     }
 
-    private static void ValidateCreateJobPostingInput(CreateJobPostingDto request)
+    private async Task<Skill?> GetOrCreateSkillAsync(string skillName)
     {
-        if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Length > 100)
-            throw new ArgumentException("Title is required (max 100 characters)");
+        if (string.IsNullOrWhiteSpace(skillName))
+            return null;
 
-        if (string.IsNullOrWhiteSpace(request.Description) || request.Description.Length > 5000)
-            throw new ArgumentException("Description is required (max 5000 characters)");
+        var normalized = skillName.Trim().ToLower();
 
-        if (request.ApplicationDeadline.HasValue && request.ApplicationDeadline.Value < DateTime.UtcNow)
-            throw new ArgumentException("Application deadline must be in the future");
+        // Try to find existing skill
+        var existing = await _unitOfWork.Skills.FindAsync(s => s.Name.ToLower() == normalized);
+        var skill = existing.FirstOrDefault();
+
+        if (skill is not null)
+            return skill;
+
+        // Create new skill
+        skill = new Skill { Name = skillName.Trim() };
+        _unitOfWork.Skills.Create(skill);
+        await _unitOfWork.SaveChangesAsync();
+
+        return skill;
     }
 
-    private static void ValidateUpdateJobPostingInput(UpdateJobPostingDto request)
+    private static JobType ParseEmploymentType(string? employmentType)
     {
-        ValidateCreateJobPostingInput(new CreateJobPostingDto
+        if (string.IsNullOrWhiteSpace(employmentType))
+            return JobType.FullTime;
+
+        return employmentType.Trim().ToLower() switch
         {
-            Title = request.Title,
-            Description = request.Description,
-            ApplicationDeadline = request.ApplicationDeadline,
-            Requirements = "",
-            Location = "",
-            EmploymentType = "",
-            RequiredSkillIds = request.RequiredSkillIds
-        });
+            "fulltime" or "full-time" or "full_time" => JobType.FullTime,
+            "parttime" or "part-time" or "part_time" => JobType.PartTime,
+            "contract" => JobType.Contract,
+            "internship" => JobType.Internship,
+            _ => Enum.TryParse<JobType>(employmentType, true, out var parsed) ? parsed : JobType.FullTime
+        };
+    }
+
+    private static string BuildAutoTitle(CreateJobPostingDto request)
+    {
+        // Use Department + EmploymentType as a clean title
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(request.Department))
+            parts.Add(request.Department);
+        if (!string.IsNullOrWhiteSpace(request.EmploymentType))
+            parts.Add(request.EmploymentType);
+
+        if (parts.Any())
+            return string.Join(" - ", parts);
+
+        // Fallback to first role name if no department
+        if (request.Roles.Any())
+            return request.Roles.First().RoleName;
+
+        return "New Job Posting";
+    }
+
+    private static string BuildAutoDescription(CreateJobPostingDto request)
+    {
+        var lines = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(request.Department))
+            lines.Add($"Department: {request.Department}");
+        if (!string.IsNullOrWhiteSpace(request.EmploymentType))
+            lines.Add($"Employment Type: {request.EmploymentType}");
+        if (request.ExperienceMinYears.HasValue || request.ExperienceMaxYears.HasValue)
+            lines.Add($"Experience: {request.ExperienceMinYears ?? 0}-{request.ExperienceMaxYears ?? 0} years");
+        if (request.GPA.HasValue && request.GPA > 0)
+            lines.Add($"Minimum GPA: {request.GPA}");
+        if (request.Degrees.Any())
+            lines.Add($"Required Degrees: {string.Join(", ", request.Degrees.Select(d => d.DegreeName))}");
+        if (request.Roles.Any())
+            lines.Add($"Roles: {string.Join(", ", request.Roles.Select(r => r.RoleName))}");
+        if (request.Skills.Any())
+            lines.Add($"Skills: {string.Join(", ", request.Skills.Select(s => s.SkillName))}");
+
+        return lines.Any() ? string.Join("\n", lines) : "Job posting";
+    }
+
+    private static T? DeserializeJson<T>(string? json) where T : class
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<T>(json, _jsonOptions);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static void ValidatePagination(int pageNumber, int pageSize)

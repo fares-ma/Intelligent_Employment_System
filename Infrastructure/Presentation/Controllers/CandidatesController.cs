@@ -131,23 +131,6 @@ public class CandidatesController : ControllerBase
     }
 
     /// <summary>
-    /// Generate AI CV from resume
-    /// </summary>
-    [HttpPost("resume/{resumeId:int}/generate-cv")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<string>> GenerateCv(int resumeId)
-    {
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userId))
-            return Unauthorized();
-
-        _logger.LogInformation("CV generation requested for resume {ResumeId} by candidate {UserId}", resumeId, userId);
-        var cvPath = await _candidateService.GenerateCvAsync(userId, resumeId);
-        return Ok(new { cvPath });
-    }
-
-    /// <summary>
     /// Update profile picture
     /// </summary>
     [HttpPut("profile-picture")]

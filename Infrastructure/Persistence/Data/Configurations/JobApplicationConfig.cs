@@ -1,3 +1,4 @@
+using Domain.Enums;
 using Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -43,6 +44,29 @@ public class JobApplicationConfig : IEntityTypeConfiguration<JobApplication>
 
         builder.Property(ja => ja.MatchScore)
             .HasPrecision(5, 2);
+
+        builder.Property(ja => ja.AiScoringStatus)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .HasDefaultValue(AiScoringStatus.NotStarted);
+
+        builder.Property(ja => ja.FitStatus)
+            .HasMaxLength(50);
+
+        builder.Property(ja => ja.RawResumeDataJson)
+            .HasColumnType("nvarchar(max)");
+
+        builder.Property(ja => ja.MatchingDetailsJson)
+            .HasColumnType("nvarchar(max)");
+
+        builder.Property(ja => ja.AiScoringErrorMessage)
+            .HasMaxLength(2000);
+
+        builder.Property(ja => ja.LastProcessedIdempotencyKey)
+            .HasMaxLength(256);
+
+        builder.HasIndex(ja => new { ja.TalentXSentCandidateId, ja.JobPostId })
+            .HasFilter("[TalentXSentCandidateId] IS NOT NULL");
 
         builder.Property(ja => ja.DeletedAt)
             .IsRequired(false);

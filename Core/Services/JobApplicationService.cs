@@ -5,6 +5,7 @@ using Domain.Models;
 using Microsoft.Extensions.Logging;
 using Services.Abstractions;
 using Services.Abstractions.DTOs.JobApplication;
+using Services.Abstractions.TalentX;
 using Shared.Pagination;
 
 namespace Services;
@@ -15,11 +16,16 @@ namespace Services;
 public class JobApplicationService : IJobApplicationService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ITalentXScoringService _talentXScoringService;
     private readonly ILogger<JobApplicationService> _logger;
 
-    public JobApplicationService(IUnitOfWork unitOfWork, ILogger<JobApplicationService> logger)
+    public JobApplicationService(
+        IUnitOfWork unitOfWork,
+        ITalentXScoringService talentXScoringService,
+        ILogger<JobApplicationService> logger)
     {
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
+        _talentXScoringService = talentXScoringService;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -65,6 +71,20 @@ public class JobApplicationService : IJobApplicationService
         await _unitOfWork.SaveChangesAsync();
 
         _logger.LogInformation("Job application created with ID {ApplicationId}", application.Id);
+
+        // Async TalentX scoring (202 Accepted + webhook). Failures are logged; application stays with MatchScore=null.
+        try
+        {
+            await _talentXScoringService.InitiateScoringForApplicationAsync(application.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to initiate TalentX scoring for application {ApplicationId}. Polling fallback may recover.",
+                application.Id);
+        }
+
         return MapToDto(application, candidate, jobPost);
     }
 
@@ -229,6 +249,8 @@ public class JobApplicationService : IJobApplicationService
             UpdatedAt = application.UpdatedAt,
             RejectionReason = application.RecruiterNotes,
             MatchScore = application.MatchScore,
+            FitStatus = application.FitStatus,
+            AiScoringStatus = application.AiScoringStatus.ToString(),
             RecruiterRating = application.RecruiterRating
         };
     }

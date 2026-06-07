@@ -1,0 +1,33 @@
+{
+  "candidate_id": "38b237e8-2aca-4e70-a425-0b6188b06171",
+  "job_id": 10,
+  "status": "completed",
+  "final_score": 89.5,
+  "fit_status": "fit",
+  "raw_resume_data": {
+    "name": "Ali Ahmed",
+    "email": "ali@test.com",
+    "phone": "+201234567890",
+    "skills": ["C#", "ASP.NET Core", "SQL Server", "Entity Framework"],
+    "education": "Bachelor of Computer Science",
+    "experience_years": 3
+  },
+  "matching_details": {
+    "skills": {
+      "score": 0.93,
+      "matched": ["C#", "ASP.NET Core"],
+      "missing": ["Docker"]
+    },
+    "experience": {
+      "score": 0.85,
+      "required_years": 2,
+      "actual_years": 3
+    },
+    "education": {
+      "score": 0.90,
+      "match": true
+    }
+  },
+  "error_message": null,
+  "idempotency_key": "talentx-match-test-2026-05-24T19:13:00"
+}

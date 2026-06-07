@@ -66,5 +66,18 @@ public class JobPostConfig : IEntityTypeConfiguration<JobPost>
 
         builder.Property(j => j.CreatedAt)
             .HasDefaultValueSql("getutcdate()");
+
+        // ── New fields ──
+        builder.Property(j => j.Department)
+            .HasMaxLength(200);
+
+        builder.Property(j => j.GPA)
+            .HasPrecision(3, 2);
+
+        builder.Property(j => j.GPAPriority)
+            .HasMaxLength(20);
+
+        builder.Property(j => j.ExperiencePriority)
+            .HasMaxLength(20);
     }
 }

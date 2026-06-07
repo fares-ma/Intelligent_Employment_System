@@ -18,7 +18,6 @@ public class CandidateService : ICandidateService
     private readonly ISavedJobRepository _savedJobRepository;
     private readonly ISkillRepository _skillRepository;
     private readonly IFileStorageService _fileStorageService;
-    private readonly IAiServiceClient _aiServiceClient;
     private readonly IMapper _mapper;
     private readonly ILogger<CandidateService> _logger;
 
@@ -29,7 +28,6 @@ public class CandidateService : ICandidateService
         ISavedJobRepository savedJobRepository,
         ISkillRepository skillRepository,
         IFileStorageService fileStorageService,
-        IAiServiceClient aiServiceClient,
         IMapper mapper,
         ILogger<CandidateService> logger)
     {
@@ -39,7 +37,6 @@ public class CandidateService : ICandidateService
         _savedJobRepository = savedJobRepository;
         _skillRepository = skillRepository;
         _fileStorageService = fileStorageService;
-        _aiServiceClient = aiServiceClient;
         _mapper = mapper;
         _logger = logger;
     }
@@ -187,36 +184,6 @@ public class CandidateService : ICandidateService
         await _unitOfWork.SaveChangesAsync();
 
         _logger.LogInformation("Resume deleted: {ResumeId}", resumeId);
-    }
-
-    public async Task<string> GenerateCvAsync(string candidateId, int resumeId)
-    {
-        var resume = await _resumeRepository.GetByIdAsync(resumeId);
-        if (resume == null)
-            throw new NotFoundException("Resume not found");
-
-        if (resume.CandidateId != candidateId)
-            throw new ForbiddenException("You cannot generate CV for this resume");
-
-        try
-        {
-            // Get resume content (for now, using filename as placeholder)
-            var resumeText = $"Resume: {resume.OriginalFileName}";
-            var candidate = await _candidateRepository.GetByIdAsync(candidateId);
-
-            var cvPath = await _aiServiceClient.GenerateCvAsync(resumeText, $"{candidate?.FirstName} {candidate?.LastName}");
-
-            resume.AiGeneratedCvPath = cvPath;
-            _resumeRepository.Update(resume);
-            await _unitOfWork.SaveChangesAsync();
-
-            return cvPath;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error generating CV for resume {ResumeId}", resumeId);
-            throw;
-        }
     }
 
     public async Task<PagedResult<CandidateApplicationDto>> GetApplicationsAsync(string candidateId, PaginationParams paginationParams)

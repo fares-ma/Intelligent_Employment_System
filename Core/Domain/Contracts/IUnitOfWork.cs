@@ -23,5 +23,6 @@ public interface IUnitOfWork : IDisposable
     IMessageRepository Messages { get; }
     IActivityLogRepository ActivityLogs { get; }
     IAnalyticsRepository Analytics { get; }
+    IProcessedIdempotencyKeyRepository ProcessedIdempotencyKeys { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

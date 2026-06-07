@@ -28,6 +28,8 @@ public class UnitOfWork : IUnitOfWork
     private IMessageRepository? _messages;
     private IActivityLogRepository? _activityLogs;
     private IAnalyticsRepository? _analytics;
+    private IProcessedIdempotencyKeyRepository? _processedIdempotencyKeys;
+
     public UnitOfWork(AppDbContext context)
     {
         _context = context;
@@ -86,6 +88,9 @@ public class UnitOfWork : IUnitOfWork
 
     public IAnalyticsRepository Analytics =>
         _analytics ??= new AnalyticsRepository(_context);
+
+    public IProcessedIdempotencyKeyRepository ProcessedIdempotencyKeys =>
+        _processedIdempotencyKeys ??= new ProcessedIdempotencyKeyRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

@@ -117,9 +117,9 @@ public class JobPostingController : ControllerBase
             if (string.IsNullOrEmpty(recruiterId))
                 return Unauthorized("User ID not found in token");
 
-            var companyIdClaim = User.FindFirst("CompanyId")?.Value;
+            var companyIdClaim = User.FindFirst("companyId")?.Value;
             if (!int.TryParse(companyIdClaim, out int companyId))
-                return Unauthorized("Company ID not found in token");
+                return BadRequest(new { message = "Company ID not found in token. Ensure you are logged in as a Recruiter." });
 
             var jobPosting = await _jobPostingService.CreateJobPostingAsync(companyId, recruiterId, request);
             return CreatedAtAction(nameof(GetJobPosting), new { id = jobPosting.Id }, jobPosting);

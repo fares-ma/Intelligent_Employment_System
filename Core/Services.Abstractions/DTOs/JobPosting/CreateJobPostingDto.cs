@@ -1,47 +1,55 @@
 namespace Services.Abstractions.DTOs.JobPosting;
 
 /// <summary>
-/// DTO for creating a new job posting
+/// DTO for creating a new job posting — matches the frontend form structure
 /// </summary>
 public class CreateJobPostingDto
 {
-    /// <summary>
-    /// Job title (required, max 100 characters)
-    /// </summary>
-    public string Title { get; set; } = string.Empty;
+    // ── Legacy fields (optional for backward compatibility) ──
 
-    /// <summary>
-    /// Full job description (required, max 5000 characters)
-    /// </summary>
-    public string Description { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Required qualifications (required, max 2000 characters)
-    /// </summary>
-    public string Requirements { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Salary range - optional (max 50 characters)
-    /// </summary>
+    public string? Title { get; set; }
+    public string? Description { get; set; }
+    public string? Requirements { get; set; }
     public string? SalaryRange { get; set; }
-
-    /// <summary>
-    /// Job location (required, max 100 characters)
-    /// </summary>
-    public string Location { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Employment type (required, max 50 characters)
-    /// </summary>
-    public string EmploymentType { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Application deadline - optional
-    /// </summary>
+    public string? Location { get; set; }
     public DateTime? ApplicationDeadline { get; set; }
 
     /// <summary>
-    /// List of required skill IDs for this position (optional)
+    /// Legacy: list of existing skill IDs. Ignored when Skills list is provided.
     /// </summary>
     public List<int> RequiredSkillIds { get; set; } = new();
+
+    // ── New frontend fields ──
+
+    public string? Department { get; set; }
+    public string? EmploymentType { get; set; }
+
+    public decimal? GPA { get; set; }
+    public string? GPAPriority { get; set; }
+
+    public int? ExperienceMinYears { get; set; }
+    public int? ExperienceMaxYears { get; set; }
+    public string? ExperiencePriority { get; set; }
+
+    public List<JobDegreeDto> Degrees { get; set; } = new();
+    public List<JobRoleDto> Roles { get; set; } = new();
+    public List<JobSkillDto> Skills { get; set; } = new();
+}
+
+public class JobDegreeDto
+{
+    public string DegreeName { get; set; } = string.Empty;
+    public string DegreePriority { get; set; } = "None";
+}
+
+public class JobRoleDto
+{
+    public string RoleName { get; set; } = string.Empty;
+    public string RolePriority { get; set; } = "None";
+}
+
+public class JobSkillDto
+{
+    public string SkillName { get; set; } = string.Empty;
+    public string SkillPriority { get; set; } = "None";
 }

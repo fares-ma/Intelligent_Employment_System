@@ -1,4 +1,5 @@
 using Domain.Contracts;
+using Domain.Enums;
 using Domain.Models;
 using Microsoft.EntityFrameworkCore;
 using Persistence.Data;
@@ -15,6 +16,37 @@ public class JobApplicationRepository : RepositoryBase<JobApplication>, IJobAppl
         return await _dbSet.AnyAsync(
             ja => ja.CandidateId == candidateId && ja.JobPostId == jobPostId,
             cancellationToken);
+    }
+
+    public async Task<JobApplication?> GetByTalentXCorrelationAsync(
+        int talentXCandidateId,
+        string candidateId,
+        int jobPostId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .FirstOrDefaultAsync(
+                ja => (ja.TalentXSentCandidateId == talentXCandidateId || ja.CandidateId == candidateId) 
+                      && ja.JobPostId == jobPostId,
+                cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<JobApplication>> GetStuckInProcessingAsync(
+        TimeSpan olderThan,
+        int maxCount,
+        CancellationToken cancellationToken = default)
+    {
+        var cutoff = DateTime.UtcNow.Subtract(olderThan);
+
+        return await _dbSet
+            .Where(ja =>
+                ja.AiScoringStatus == AiScoringStatus.Processing
+                && ja.MatchScore == null
+                && ja.AiScoringRequestedAt != null
+                && ja.AiScoringRequestedAt < cutoff)
+            .OrderBy(ja => ja.AiScoringRequestedAt)
+            .Take(maxCount)
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<PagedResult<JobApplication>> GetByCandidateAsync(string candidateId, PaginationParams paginationParams, CancellationToken cancellationToken = default)

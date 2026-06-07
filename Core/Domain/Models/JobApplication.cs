@@ -28,6 +28,43 @@ public class JobApplication
     public string? MatchReport { get; set; }
 
     /// <summary>
+    /// TalentX fit label (e.g. fit, partial_fit, not_fit).
+    /// </summary>
+    public string? FitStatus { get; set; }
+
+    /// <summary>
+    /// Async scoring state driven by TalentX webhook (and polling fallback).
+    /// </summary>
+    public AiScoringStatus AiScoringStatus { get; set; } = AiScoringStatus.NotStarted;
+
+    /// <summary>
+    /// Integer candidate_id sent to TalentX POST /api/v1/score (stable hash of CandidateId GUID).
+    /// Used with JobPostId to correlate webhook and polling responses.
+    /// </summary>
+    public int? TalentXSentCandidateId { get; set; }
+
+    /// <summary>
+    /// Parsed resume payload from TalentX (JSON).
+    /// </summary>
+    public string? RawResumeDataJson { get; set; }
+
+    /// <summary>
+    /// Detailed matching breakdown from TalentX (JSON).
+    /// </summary>
+    public string? MatchingDetailsJson { get; set; }
+
+    public string? AiScoringErrorMessage { get; set; }
+
+    public DateTime? AiScoringRequestedAt { get; set; }
+
+    public DateTime? AiScoringCompletedAt { get; set; }
+
+    /// <summary>
+    /// Last successfully processed webhook idempotency key for this application.
+    /// </summary>
+    public string? LastProcessedIdempotencyKey { get; set; }
+
+    /// <summary>
     /// Recruiter star rating 1–5.
     /// </summary>
     public int? RecruiterRating { get; set; }
