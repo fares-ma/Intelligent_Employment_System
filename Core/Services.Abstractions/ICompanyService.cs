@@ -9,6 +9,11 @@ namespace Services.Abstractions;
 public interface ICompanyService
 {
     /// <summary>
+    /// Get all companies with active job post counts (paginated)
+    /// </summary>
+    Task<IEnumerable<CompanyProfileDto>> GetAllCompaniesAsync(int pageNumber = 1, int pageSize = 20);
+
+    /// <summary>
     /// Get company profile information by ID
     /// </summary>
     /// <param name="companyId">Company identifier</param>

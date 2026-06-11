@@ -38,6 +38,45 @@ public class CompanyService : ICompanyService
     }
 
     /// <summary>
+    /// Get all companies with active job post counts (paginated)
+    /// </summary>
+    public async Task<IEnumerable<CompanyProfileDto>> GetAllCompaniesAsync(int pageNumber = 1, int pageSize = 20)
+    {
+        _logger.LogInformation("Fetching companies - Page: {PageNumber}, Size: {PageSize}", pageNumber, pageSize);
+
+        var companies = await _unitOfWork.Companies.GetAllWithIncludesAsync();
+
+        var result = companies
+            .Where(c => c.IsActive)
+            .Select(company =>
+            {
+                var admin = company.Recruiters.FirstOrDefault(r => r.RecruiterRole == UserRole.Admin);
+                return new CompanyProfileDto
+                {
+                    Id = company.Id.ToString(),
+                    Name = company.Name,
+                    TaxNumber = company.TaxNumber,
+                    Industry = company.Industry,
+                    Website = company.Website,
+                    Description = company.Description,
+                    LogoPath = company.LogoPath,
+                    ActiveJobPostsCount = company.JobPosts.Count(jp => jp.IsActive && jp.DeletedAt == null),
+                    RecruiterCount = company.Recruiters.Count,
+                    AdminId = admin?.Id ?? string.Empty,
+                    AdminName = admin is not null ? $"{admin.FirstName} {admin.LastName}" : string.Empty,
+                    CreatedAt = company.CreatedAt
+                };
+            })
+            .OrderByDescending(c => c.ActiveJobPostsCount)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        _logger.LogInformation("Retrieved {Count} companies", result.Count);
+        return result;
+    }
+
+    /// <summary>
     /// Get company profile information by ID
     /// </summary>
     public async Task<CompanyProfileDto> GetCompanyProfileAsync(string companyId)

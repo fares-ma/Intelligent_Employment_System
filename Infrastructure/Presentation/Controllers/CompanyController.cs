@@ -43,6 +43,29 @@ public class CompanyController : ControllerBase
     }
 
     /// <summary>
+    /// Get all companies with active job post counts (paginated)
+    /// </summary>
+    [HttpGet]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(IEnumerable<CompanyProfileDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<IEnumerable<CompanyProfileDto>>> GetAllCompanies(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20)
+    {
+        try
+        {
+            var companies = await _companyService.GetAllCompaniesAsync(pageNumber, pageSize);
+            return Ok(companies);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting all companies");
+            return StatusCode(500, new { message = "Internal server error" });
+        }
+    }
+
+    /// <summary>
     /// Create a new company (multipart: fields + optional brand image). Open to any caller; recruiter without a company is linked as admin when authenticated.
     /// </summary>
     [HttpPost]

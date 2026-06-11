@@ -9,4 +9,9 @@ public interface ICompanyRepository : IRepositoryBase<Company>
 
     /// <param name="tracking">When false, uses no-tracking query (read scenarios).</param>
     Task<Company?> GetByIdWithIncludesAsync(int id, bool tracking = true, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get all companies with Recruiters and JobPosts included
+    /// </summary>
+    Task<IEnumerable<Company>> GetAllWithIncludesAsync(CancellationToken cancellationToken = default);
 }

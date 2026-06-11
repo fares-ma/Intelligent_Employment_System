@@ -33,4 +33,14 @@ public class CompanyRepository : RepositoryBase<Company>, ICompanyRepository
 
         return await query.FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
     }
+
+    public async Task<IEnumerable<Company>> GetAllWithIncludesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .Include(c => c.Recruiters)
+            .Include(c => c.JobPosts)
+            .OrderBy(c => c.Name)
+            .ToListAsync(cancellationToken);
+    }
 }
