@@ -30,7 +30,17 @@ public interface IInterviewService
     /// <summary>
     /// Get all interviews for a recruiter's job postings (paginated)
     /// </summary>
-    Task<IEnumerable<InterviewDto>> GetRecruiterInterviewsAsync(string recruiterId, int pageNumber = 1, int pageSize = 20);
+    Task<Shared.Pagination.PagedResult<RecruiterInterviewDto>> GetRecruiterInterviewsAsync(string recruiterId, Domain.Enums.InterviewStatus? status, Shared.Pagination.PaginationParams pagination);
+
+    /// <summary>
+    /// Get detailed interview info for recruiter
+    /// </summary>
+    Task<RecruiterInterviewDto> GetInterviewDetailsAsync(int interviewId, string recruiterId);
+
+    /// <summary>
+    /// Submit evaluation for a completed interview
+    /// </summary>
+    Task EvaluateInterviewAsync(int interviewId, string recruiterId, EvaluateInterviewDto evaluation);
 
     /// <summary>
     /// Update interview (reschedule or change details)

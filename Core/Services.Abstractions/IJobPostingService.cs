@@ -1,4 +1,5 @@
 using Services.Abstractions.DTOs.JobPosting;
+using Shared.Pagination;
 
 namespace Services.Abstractions;
 
@@ -16,6 +17,11 @@ public interface IJobPostingService
     /// Get job postings by company ID
     /// </summary>
     Task<IEnumerable<JobPostingDto>> GetCompanyJobPostingsAsync(int companyId, int pageNumber = 1, int pageSize = 20);
+    
+    /// <summary>
+    /// Retrieves applicants for a specific job post with filtering and sorting
+    /// </summary>
+    Task<PagedResult<Services.Abstractions.DTOs.JobPosting.JobApplicantDto>> GetJobApplicantsAsync(int jobPostId, string recruiterId, PaginationParams pagination, Domain.Enums.ApplicationStatus? status, string? sortBy); 
 
     /// <summary>
     /// Get a specific job posting by ID

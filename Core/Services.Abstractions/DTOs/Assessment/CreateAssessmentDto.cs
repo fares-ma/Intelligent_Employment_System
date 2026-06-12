@@ -21,6 +21,8 @@ public class CreateAssessmentDto
     [Range(1, 300)]
     public int TimeLimitMinutes { get; set; }
 
+    public int? PassingScore { get; set; }
+
     public List<CreateQuestionDto> Questions { get; set; } = new List<CreateQuestionDto>();
 }
 

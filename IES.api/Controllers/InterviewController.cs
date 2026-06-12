@@ -146,22 +146,23 @@ public class InterviewController : ControllerBase
     /// Get all interviews for recruiter's job postings
     /// </summary>
     [HttpGet("recruiter/interviews")]
-    //[Authorize(Roles = "Recruiter,Admin")]
-    [AllowAnonymous]
-    [ProducesResponseType(typeof(IEnumerable<InterviewDto>), StatusCodes.Status200OK)]
+    [Authorize(Roles = "Recruiter,Admin")]
+    [ProducesResponseType(typeof(Shared.Pagination.PagedResult<RecruiterInterviewDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<IEnumerable<InterviewDto>>> GetRecruiterInterviews(
+    public async Task<ActionResult<Shared.Pagination.PagedResult<RecruiterInterviewDto>>> GetRecruiterInterviews(
+        [FromQuery] Domain.Enums.InterviewStatus? status,
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 20)
     {
         try
         {
-            // TODO: Remove fallback after testing
             var recruiterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? "ac51d40c-92de-4bcb-b067-52aa80a76665";
-            var result = await _service.GetRecruiterInterviewsAsync(recruiterId, pageNumber, pageSize);
+                ?? throw new UnauthorizedAccessException("User identity not found");
+
+            var pagination = new Shared.Pagination.PaginationParams { PageNumber = pageNumber, PageSize = pageSize };
+            var result = await _service.GetRecruiterInterviewsAsync(recruiterId, status, pagination);
             return Ok(result);
         }
         catch (UnauthorizedAccessException ex)
@@ -179,6 +180,36 @@ public class InterviewController : ControllerBase
             _logger.LogError(ex, "Error in GetRecruiterInterviews");
             return StatusCode(500, new { message = "Internal server error" });
         }
+    }
+
+    /// <summary>
+    /// Get detailed interview info for recruiter
+    /// </summary>
+    [HttpGet("recruiter/{id}")]
+    [Authorize(Roles = "Recruiter,Admin")]
+    [ProducesResponseType(typeof(RecruiterInterviewDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<RecruiterInterviewDto>> GetInterviewDetailsForRecruiter(int id)
+    {
+        var recruiterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? throw new UnauthorizedAccessException("User identity not found");
+
+        var result = await _service.GetInterviewDetailsAsync(id, recruiterId);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Submit evaluation for a completed interview
+    /// </summary>
+    [HttpPut("{id}/evaluate")]
+    [Authorize(Roles = "Recruiter,Admin")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> EvaluateInterview(int id, [FromBody] EvaluateInterviewDto request)
+    {
+        var recruiterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? throw new UnauthorizedAccessException("User identity not found");
+
+        await _service.EvaluateInterviewAsync(id, recruiterId, request);
+        return Ok();
     }
 
     /// <summary>

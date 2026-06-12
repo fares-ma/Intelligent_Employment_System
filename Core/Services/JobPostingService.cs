@@ -279,6 +279,74 @@ public class JobPostingService : IJobPostingService
             .ToList();
     }
 
+    public async Task<PagedResult<Services.Abstractions.DTOs.JobPosting.JobApplicantDto>> GetJobApplicantsAsync(int jobPostId, string recruiterId, PaginationParams pagination, Domain.Enums.ApplicationStatus? status, string? sortBy)
+    {
+        ValidatePagination(pagination.PageNumber, pagination.PageSize);
+
+        var jobPost = await _unitOfWork.JobPosts.GetByIdAsync(jobPostId);
+        if (jobPost == null)
+            throw new ArgumentException("Job posting not found");
+
+        if (jobPost.CreatedByRecruiterId != recruiterId)
+            throw new UnauthorizedAccessException("You don't have permission to access applicants for this job posting");
+
+        // Retrieve job applications
+        var applications = await _unitOfWork.JobApplications.FindAsync(ja => ja.JobPostId == jobPostId);
+
+        if (status.HasValue)
+        {
+            applications = applications.Where(a => a.Status == status.Value);
+        }
+
+        // Apply sorting
+        if (!string.IsNullOrWhiteSpace(sortBy))
+        {
+            applications = sortBy.ToLower() switch
+            {
+                "date" => applications.OrderByDescending(a => a.AppliedAt),
+                "score" => applications.OrderByDescending(a => a.MatchScore),
+                "status" => applications.OrderBy(a => a.Status),
+                _ => applications.OrderByDescending(a => a.AppliedAt)
+            };
+        }
+        else
+        {
+            applications = applications.OrderByDescending(a => a.AppliedAt);
+        }
+
+        var totalCount = applications.Count();
+
+        var pagedApps = applications
+            .Skip((pagination.PageNumber - 1) * pagination.PageSize)
+            .Take(pagination.PageSize)
+            .ToList();
+
+        var dtos = new List<Services.Abstractions.DTOs.JobPosting.JobApplicantDto>();
+        foreach (var app in pagedApps)
+        {
+            var candidate = await _unitOfWork.Candidates.GetByIdAsync(app.CandidateId);
+            
+            dtos.Add(new Services.Abstractions.DTOs.JobPosting.JobApplicantDto
+            {
+                CandidateId = candidate?.Id ?? string.Empty,
+                FullName = candidate?.UserName ?? "Unknown",
+                Email = candidate?.Email ?? "Unknown",
+                ApplicationStatus = app.Status.ToString(),
+                CurrentStage = app.Status.ToString(),
+                ApplicationDate = app.AppliedAt,
+                MatchScore = app.MatchScore
+            });
+        }
+
+        return new PagedResult<Services.Abstractions.DTOs.JobPosting.JobApplicantDto>
+        {
+            Items = dtos,
+            TotalCount = totalCount,
+            PageNumber = pagination.PageNumber,
+            PageSize = pagination.PageSize
+        };
+    }
+
     // ── Private helpers ──
 
     private static JobPostingDto MapToDto(JobPost jobPost)

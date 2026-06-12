@@ -5,6 +5,7 @@ using Domain.Models;
 using Microsoft.Extensions.Logging;
 using Services.Abstractions;
 using Services.Abstractions.DTOs.Assessment;
+using Shared.Pagination;
 using System.Text.Json;
 
 namespace Services;
@@ -53,6 +54,87 @@ public class AssessmentService : IAssessmentService
     {
         var assessments = await _unitOfWork.Assessments.GetByJobPostAsync(jobPostId);
         return _mapper.Map<IEnumerable<AssessmentDto>>(assessments);
+    }
+
+    public async Task<PagedResult<AssessmentCandidateListDto>> GetAssessmentCandidatesAsync(int assessmentId, PaginationParams pagination)
+    {
+        var pagedResults = await _unitOfWork.CandidateAssessments.GetPagedByAssessmentAsync(assessmentId, pagination);
+
+        var dtoList = pagedResults.Items.Select(ca => new AssessmentCandidateListDto
+        {
+            CandidateId = ca.CandidateId,
+            FullName = ca.Candidate?.UserName ?? "Unknown", // Assuming UserName acts as full name if no profile
+            Email = ca.Candidate?.Email ?? "Unknown",
+            Score = ca.Score,
+            Status = ca.IsCompleted ? "Completed" : "In Progress",
+            SubmissionDate = ca.SubmittedAt
+        }).ToList();
+
+        return new PagedResult<AssessmentCandidateListDto>
+        {
+            Items = dtoList,
+            TotalCount = pagedResults.TotalCount,
+            PageNumber = pagedResults.PageNumber,
+            PageSize = pagedResults.PageSize
+        };
+    }
+
+    public async Task<AssessmentCandidateDetailDto> GetCandidateAssessmentDetailsAsync(int assessmentId, string candidateId)
+    {
+        var ca = await _unitOfWork.CandidateAssessments.GetByCandidateAndAssessmentAsync(candidateId, assessmentId);
+        if (ca == null)
+            throw new NotFoundException("Assessment attempt not found.");
+
+        var candidate = await _unitOfWork.Candidates.GetByIdAsync(candidateId);
+        var assessment = await _unitOfWork.Assessments.GetWithQuestionsAsync(assessmentId);
+
+        var dto = new AssessmentCandidateDetailDto
+        {
+            CandidateId = candidateId,
+            FullName = candidate?.UserName ?? "Unknown",
+            Email = candidate?.Email ?? "Unknown",
+            PhoneNumber = candidate?.PhoneNumber,
+            AssessmentId = assessmentId,
+            AssessmentName = assessment?.Title ?? "Unknown",
+            TotalScore = ca.Score ?? 0,
+            MaximumScore = assessment?.TotalScore ?? 0,
+            SubmissionDate = ca.SubmittedAt
+        };
+
+        if (assessment != null && !string.IsNullOrEmpty(ca.Answers))
+        {
+            try
+            {
+                var answersDict = JsonSerializer.Deserialize<Dictionary<string, string>>(ca.Answers) ?? new Dictionary<string, string>();
+                foreach (var q in assessment.Questions.OrderBy(q => q.OrderIndex))
+                {
+                    string candAnswer = answersDict.TryGetValue(q.Id.ToString(), out var ans) ? ans : "";
+                    
+                    bool isCorrect = false;
+                    if (q.Type == Domain.Enums.QuestionType.MCQ || q.Type == Domain.Enums.QuestionType.TrueFalse)
+                    {
+                        isCorrect = !string.IsNullOrEmpty(q.CorrectAnswer) && q.CorrectAnswer.Equals(candAnswer, StringComparison.OrdinalIgnoreCase);
+                    }
+
+                    dto.Questions.Add(new QuestionAnswerDto
+                    {
+                        QuestionId = q.Id,
+                        QuestionText = q.Text,
+                        QuestionType = q.Type.ToString(),
+                        CandidateAnswer = candAnswer,
+                        CorrectAnswer = q.CorrectAnswer,
+                        IsCorrect = isCorrect,
+                        Points = q.Points
+                    });
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse answers for candidate {CandidateId} on assessment {AssessmentId}", candidateId, assessmentId);
+            }
+        }
+
+        return dto;
     }
 
     public async Task<CandidateAssessmentDto> StartAssessmentAsync(int assessmentId, int jobApplicationId, string candidateId)

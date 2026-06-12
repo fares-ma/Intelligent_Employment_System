@@ -114,39 +114,133 @@ public class InterviewService : IInterviewService
         return dtos;
     }
 
-    public async Task<IEnumerable<InterviewDto>> GetRecruiterInterviewsAsync(string recruiterId, int pageNumber = 1, int pageSize = 20)
+    public async Task<PagedResult<RecruiterInterviewDto>> GetRecruiterInterviewsAsync(string recruiterId, InterviewStatus? status, PaginationParams pagination)
     {
         _logger.LogInformation("Retrieving interviews for recruiter {RecruiterId}", recruiterId);
-        ValidatePagination(pageNumber, pageSize);
+        ValidatePagination(pagination.PageNumber, pagination.PageSize);
 
         // Get recruiter's job postings
         var jobPosts = await _unitOfWork.JobPosts.FindAsync(jp => jp.CreatedByRecruiterId == recruiterId);
-        
-        var dtos = new List<InterviewDto>();
-        var skip = (pageNumber - 1) * pageSize;
-        var count = 0;
+        var jobPostIds = jobPosts.Select(j => j.Id).ToList();
 
-        foreach (var jobPost in jobPosts)
+        // Getting all applications for these jobs
+        var applications = new List<JobApplication>();
+        foreach(var jobId in jobPostIds)
         {
-            // Get applications for this job post
-            var applications = await _unitOfWork.JobApplications.FindAsync(ja => ja.JobPostId == jobPost.Id);
-            
-            foreach (var application in applications)
-            {
-                var interviews = await _unitOfWork.Interviews.FindAsync(i => i.JobApplicationId == application.Id);
-                
-                foreach (var interview in interviews)
-                {
-                    if (count >= skip && count < skip + pageSize)
-                    {
-                        dtos.Add(await MapToDtoAsync(interview));
-                    }
-                    count++;
-                }
-            }
+            var apps = await _unitOfWork.JobApplications.FindAsync(ja => ja.JobPostId == jobId);
+            applications.AddRange(apps);
+        }
+        var appIds = applications.Select(a => a.Id).ToList();
+
+        var allInterviewsList = new List<Interview>();
+        foreach(var appId in appIds)
+        {
+            var inters = await _unitOfWork.Interviews.FindAsync(i => i.JobApplicationId == appId);
+            allInterviewsList.AddRange(inters);
         }
 
-        return dtos.Skip(skip).Take(pageSize);
+        // Apply status filter
+        if (status.HasValue)
+        {
+            allInterviewsList = allInterviewsList.Where(i => i.Status == status.Value).ToList();
+        }
+
+        var totalCount = allInterviewsList.Count;
+
+        var pagedInterviews = allInterviewsList
+            .OrderByDescending(i => i.ScheduledAt)
+            .Skip((pagination.PageNumber - 1) * pagination.PageSize)
+            .Take(pagination.PageSize)
+            .ToList();
+
+        var dtos = new List<RecruiterInterviewDto>();
+        foreach(var interview in pagedInterviews)
+        {
+            var application = applications.First(a => a.Id == interview.JobApplicationId);
+            var candidate = await _unitOfWork.Candidates.GetByIdAsync(application.CandidateId);
+
+            dtos.Add(new RecruiterInterviewDto
+            {
+                InterviewId = interview.Id,
+                InterviewType = interview.InterviewType.ToString(),
+                ScheduledAt = interview.ScheduledAt,
+                Status = interview.Status.ToString(),
+                MeetingLink = interview.MeetingLink,
+                Notes = interview.FeedbackNotes,
+                Rating = interview.Score, // Let's use Score for Rating to avoid schema changes
+                CandidateId = candidate?.Id ?? string.Empty,
+                FullName = candidate?.UserName ?? "Unknown",
+                Email = candidate?.Email ?? "Unknown",
+                PhoneNumber = candidate?.PhoneNumber
+            });
+        }
+
+        return new PagedResult<RecruiterInterviewDto>
+        {
+            Items = dtos,
+            TotalCount = totalCount,
+            PageNumber = pagination.PageNumber,
+            PageSize = pagination.PageSize
+        };
+    }
+
+    public async Task<RecruiterInterviewDto> GetInterviewDetailsAsync(int interviewId, string recruiterId)
+    {
+        var interview = await _unitOfWork.Interviews.GetByIdAsync(interviewId);
+        if (interview == null)
+            throw new ArgumentException("Interview not found");
+
+        var application = await _unitOfWork.JobApplications.GetByIdAsync(interview.JobApplicationId);
+        if (application == null)
+            throw new ArgumentException("Job application not found");
+
+        var jobPost = await _unitOfWork.JobPosts.GetByIdAsync(application.JobPostId);
+        if (jobPost == null || jobPost.CreatedByRecruiterId != recruiterId)
+            throw new UnauthorizedAccessException("You don't have permission to access this interview");
+
+        var candidate = await _unitOfWork.Candidates.GetByIdAsync(application.CandidateId);
+
+        return new RecruiterInterviewDto
+        {
+            InterviewId = interview.Id,
+            InterviewType = interview.InterviewType.ToString(),
+            ScheduledAt = interview.ScheduledAt,
+            Status = interview.Status.ToString(),
+            MeetingLink = interview.MeetingLink,
+            Notes = interview.FeedbackNotes,
+            Rating = interview.Score,
+            CandidateId = candidate?.Id ?? string.Empty,
+            FullName = candidate?.UserName ?? "Unknown",
+            Email = candidate?.Email ?? "Unknown",
+            PhoneNumber = candidate?.PhoneNumber
+        };
+    }
+
+    public async Task EvaluateInterviewAsync(int interviewId, string recruiterId, EvaluateInterviewDto evaluation)
+    {
+        var interview = await _unitOfWork.Interviews.GetByIdAsync(interviewId);
+        if (interview == null)
+            throw new ArgumentException("Interview not found");
+
+        var application = await _unitOfWork.JobApplications.GetByIdAsync(interview.JobApplicationId);
+        if (application == null)
+            throw new ArgumentException("Job application not found");
+
+        var jobPost = await _unitOfWork.JobPosts.GetByIdAsync(application.JobPostId);
+        if (jobPost == null || jobPost.CreatedByRecruiterId != recruiterId)
+            throw new UnauthorizedAccessException("You don't have permission to evaluate this interview");
+
+        if (interview.Status != InterviewStatus.Completed)
+            throw new Domain.Exceptions.BadRequestException("Can only evaluate completed interviews");
+
+        // Map rating to score (since rating is 1-5, and maybe Score was originally 0-100?
+        // Wait, the prompt says "Rating (1-5)" and the RecruiterEvaluation says "EvaluateInterviewDto has decimal Rating".
+        // Let's store Rating in Score, and FeedbackComments in FeedbackNotes.
+        interview.Score = evaluation.Rating;
+        interview.FeedbackNotes = evaluation.FeedbackComments;
+
+        _unitOfWork.Interviews.Update(interview);
+        await _unitOfWork.SaveChangesAsync();
     }
 
     public async Task<InterviewDto> UpdateInterviewAsync(int interviewId, string recruiterId, UpdateInterviewDto request)

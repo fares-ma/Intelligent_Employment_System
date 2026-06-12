@@ -12,6 +12,7 @@ public class AssessmentDto
     public int TimeLimitMinutes { get; set; }
     public int TotalScore { get; set; }
     public bool IsAiGenerated { get; set; }
+    public int? PassingScore { get; set; }
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
     

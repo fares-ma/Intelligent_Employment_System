@@ -15,6 +15,11 @@ public interface ICandidateService
     /// Update candidate profile information
     /// </summary>
     Task<CandidateProfileDto> UpdateProfileAsync(string candidateId, UpdateCandidateProfileDto dto);
+    
+    /// <summary>
+    /// Gets the candidate profile for a recruiter (verifies the candidate applied to the recruiter's jobs)
+    /// </summary>
+    Task<Services.Abstractions.DTOs.Candidate.RecruiterCandidateProfileDto> GetProfileForRecruiterAsync(string candidateId, string recruiterId);
 
     /// <summary>
     /// Update candidate skills (replaces existing)

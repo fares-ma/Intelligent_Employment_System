@@ -49,6 +49,25 @@ public class AssessmentsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("{id}/candidates")]
+    [Authorize(Roles = "Admin,Recruiter")]
+    [ProducesResponseType(typeof(Shared.Pagination.PagedResult<AssessmentCandidateListDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<Shared.Pagination.PagedResult<AssessmentCandidateListDto>>> GetAssessmentCandidates(int id, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
+    {
+        var pagination = new Shared.Pagination.PaginationParams { PageNumber = pageNumber, PageSize = pageSize };
+        var result = await _assessmentService.GetAssessmentCandidatesAsync(id, pagination);
+        return Ok(result);
+    }
+
+    [HttpGet("{id}/candidates/{candidateId}")]
+    [Authorize(Roles = "Admin,Recruiter")]
+    [ProducesResponseType(typeof(AssessmentCandidateDetailDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<AssessmentCandidateDetailDto>> GetCandidateAssessmentDetails(int id, string candidateId)
+    {
+        var result = await _assessmentService.GetCandidateAssessmentDetailsAsync(id, candidateId);
+        return Ok(result);
+    }
+
     // --- CANDIDATE ENDPOINTS ---
 
     [HttpPost("{id}/start")]

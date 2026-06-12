@@ -100,6 +100,49 @@ public class JobPostingController : ControllerBase
     }
 
     /// <summary>
+    /// Get job applicants for a specific job posting (recruiter only)
+    /// </summary>
+    [HttpGet("{id}/applicants")]
+    [Authorize(Roles = "Recruiter,Admin")]
+    [ProducesResponseType(typeof(Shared.Pagination.PagedResult<JobApplicantDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetJobApplicants(
+        int id, 
+        [FromQuery] Domain.Enums.ApplicationStatus? status,
+        [FromQuery] string? sortBy,
+        [FromQuery] int pageNumber = 1, 
+        [FromQuery] int pageSize = 20)
+    {
+        try
+        {
+            var recruiterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(recruiterId))
+                return Unauthorized("User ID not found in token");
+
+            var pagination = new Shared.Pagination.PaginationParams { PageNumber = pageNumber, PageSize = pageSize };
+            var applicants = await _jobPostingService.GetJobApplicantsAsync(id, recruiterId, pagination, status, sortBy);
+            return Ok(applicants);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Bad request getting job applicants");
+            return BadRequest(ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized getting job applicants");
+            return Unauthorized(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting job applicants for job {JobPostingId}", id);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
     /// Create a new job posting (recruiter only)
     /// </summary>
     [HttpPost]

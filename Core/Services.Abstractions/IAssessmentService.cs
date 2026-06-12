@@ -9,6 +9,8 @@ public interface IAssessmentService
     Task<AssessmentDto> CreateAssessmentAsync(CreateAssessmentDto request, string userId);
     Task<AssessmentDto> GetAssessmentAsync(int assessmentId);
     Task<IEnumerable<AssessmentDto>> GetAssessmentsForJobAsync(int jobPostId);
+    Task<PagedResult<AssessmentCandidateListDto>> GetAssessmentCandidatesAsync(int assessmentId, PaginationParams pagination);
+    Task<AssessmentCandidateDetailDto> GetCandidateAssessmentDetailsAsync(int assessmentId, string candidateId);
     
     // Candidate Operations
     Task<CandidateAssessmentDto> StartAssessmentAsync(int assessmentId, int jobApplicationId, string candidateId);

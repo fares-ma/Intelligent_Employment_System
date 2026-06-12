@@ -2,7 +2,6 @@ using Domain.Contracts;
 using Domain.Models;
 using Services.Abstractions;
 using Services.Abstractions.DTOs.ActivityLog;
-using Services.Abstractions.DTOs.ActivityLog;
 using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;

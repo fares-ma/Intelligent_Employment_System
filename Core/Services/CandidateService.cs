@@ -4,6 +4,7 @@ using Domain.Exceptions;
 using Domain.Models;
 using Microsoft.Extensions.Logging;
 using Services.Abstractions;
+using Services.Abstractions.DTOs.Candidate;
 using Services.Abstractions.DTOs.Candidates;
 using Shared;
 using Shared.Pagination;
@@ -59,6 +60,53 @@ public class CandidateService : ICandidateService
 
         dto.Resumes = _mapper.Map<List<ResumeDto>>(resumesData);
         
+        return dto;
+    }
+
+    public async Task<Services.Abstractions.DTOs.Candidate.RecruiterCandidateProfileDto> GetProfileForRecruiterAsync(string candidateId, string recruiterId)
+    {
+        // 1. Verify candidate has applied to a job created by this recruiter
+        var applications = await _unitOfWork.JobApplications.FindAsync(ja => ja.CandidateId == candidateId);
+        var hasApplied = false;
+
+        foreach (var app in applications)
+        {
+            var jobPost = await _unitOfWork.JobPosts.GetByIdAsync(app.JobPostId);
+            if (jobPost != null && jobPost.CreatedByRecruiterId == recruiterId)
+            {
+                hasApplied = true;
+                break;
+            }
+        }
+
+        if (!hasApplied)
+        {
+            throw new UnauthorizedAccessException("You can only view profiles of candidates who have applied to your jobs.");
+        }
+
+        // 2. Fetch full candidate profile
+        var candidate = await _candidateRepository.GetWithSkillsAsync(candidateId);
+        if (candidate == null)
+            throw new NotFoundException("Candidate not found");
+
+        var resumesData = await _resumeRepository.GetByCandidateAsync(candidateId);
+
+        var dto = new Services.Abstractions.DTOs.Candidate.RecruiterCandidateProfileDto
+        {
+            CandidateId = candidate.Id,
+            FullName = candidate.UserName ?? "Unknown",
+            Email = candidate.Email ?? "Unknown",
+            PhoneNumber = candidate.PhoneNumber,
+            Address = candidate.Address,
+            ResumeUrl = null,
+            LinkedInUrl = candidate.LinkedInUrl,
+            YearsOfExperience = candidate.YearsOfExperience ?? 0,
+            Skills = _mapper.Map<List<CandidateSkillDto>>(candidate.CandidateSkills),
+            Experience = _mapper.Map<List<CandidateExperienceDto>>(candidate.CandidateExperiences),
+            Education = _mapper.Map<List<CandidateEducationDto>>(candidate.CandidateEducations),
+            Resumes = _mapper.Map<List<ResumeDto>>(resumesData)
+        };
+
         return dto;
     }
 
