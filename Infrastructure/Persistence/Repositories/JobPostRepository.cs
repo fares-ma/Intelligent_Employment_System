@@ -15,6 +15,8 @@ public class JobPostRepository : RepositoryBase<JobPost>, IJobPostRepository
         return await _dbSet
             .Include(j => j.JobPostSkills)
                 .ThenInclude(jps => jps.Skill)
+            .Include(j => j.Company)
+            .Include(j => j.JobApplications)
             .AsNoTracking()
             .FirstOrDefaultAsync(j => j.Id == jobPostId, cancellationToken);
     }
@@ -26,6 +28,7 @@ public class JobPostRepository : RepositoryBase<JobPost>, IJobPostRepository
             .Include(j => j.JobPostSkills)
                 .ThenInclude(jps => jps.Skill)
             .Include(j => j.Company)
+            .Include(j => j.JobApplications)
             .AsNoTracking()
             .OrderByDescending(j => j.CreatedAt);
 
@@ -56,6 +59,7 @@ public class JobPostRepository : RepositoryBase<JobPost>, IJobPostRepository
             .Include(j => j.JobPostSkills)
                 .ThenInclude(jps => jps.Skill)
             .Include(j => j.Company)
+            .Include(j => j.JobApplications)
             .AsNoTracking()
             .OrderByDescending(j => j.JobPostSkills.Count(jps => skillIds.Contains(jps.SkillId)))
             .Take(count)
@@ -68,6 +72,8 @@ public class JobPostRepository : RepositoryBase<JobPost>, IJobPostRepository
             .Where(j => j.CompanyId == companyId)
             .Include(j => j.JobPostSkills)
                 .ThenInclude(jps => jps.Skill)
+            .Include(j => j.Company)
+            .Include(j => j.JobApplications)
             .AsNoTracking()
             .OrderByDescending(j => j.CreatedAt);
 

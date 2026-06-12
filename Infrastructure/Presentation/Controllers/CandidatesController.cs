@@ -114,6 +114,22 @@ public class CandidatesController : ControllerBase
     }
 
     /// <summary>
+    /// Download resume
+    /// </summary>
+    [HttpGet("resume/{resumeId:int}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> DownloadResume(int resumeId)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
+
+        var (stream, contentType, fileName) = await _candidateService.DownloadResumeAsync(userId, resumeId);
+        return File(stream, contentType, fileName);
+    }
+
+    /// <summary>
     /// Delete resume
     /// </summary>
     [HttpDelete("resume/{resumeId:int}")]
@@ -128,6 +144,30 @@ public class CandidatesController : ControllerBase
         _logger.LogInformation("Deleting resume {ResumeId} for candidate {UserId}", resumeId, userId);
         await _candidateService.DeleteResumeAsync(userId, resumeId);
         return NoContent();
+    }
+
+    /// <summary>
+    /// Get profile picture
+    /// </summary>
+    [HttpGet("profile-picture/{fileName}")]
+    [AllowAnonymous]
+    public IActionResult GetProfilePicture(string fileName)
+    {
+        if (string.IsNullOrEmpty(fileName) || fileName.Contains(".."))
+            return BadRequest();
+
+        // This assumes the file is in the Uploads/profile-pictures directory
+        var filePath = Path.Combine(Directory.GetCurrentDirectory(), "Uploads", "profile-pictures", fileName);
+        if (!System.IO.File.Exists(filePath))
+        {
+            // Try ContentRootPath if running from another directory
+            filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Uploads", "profile-pictures", fileName);
+            if (!System.IO.File.Exists(filePath))
+                return NotFound();
+        }
+
+        var contentType = fileName.EndsWith(".png") ? "image/png" : "image/jpeg";
+        return PhysicalFile(Path.GetFullPath(filePath), contentType);
     }
 
     /// <summary>

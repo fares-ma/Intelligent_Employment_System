@@ -33,11 +33,41 @@ public class DashboardService : IDashboardService
 
         // Recent Applications (Last 5)
         var recentAppsPaged = await _unitOfWork.JobApplications.GetByCandidateAsync(candidateId, new PaginationParams { PageNumber = 1, PageSize = 5 });
-        var recentApps = _mapper.Map<IEnumerable<JobApplicationDto>>(recentAppsPaged.Items);
+        var recentApps = recentAppsPaged.Items.Select(ja => new JobApplicationDto
+        {
+            Id = ja.Id,
+            CandidateId = ja.CandidateId,
+            CandidateName = ja.Candidate?.UserName ?? "Unknown",
+            JobPostId = ja.JobPostId,
+            JobTitle = ja.JobPost?.Title ?? "Unknown Job",
+            Status = ja.Status.ToString(),
+            AppliedAt = ja.AppliedAt,
+            UpdatedAt = ja.UpdatedAt,
+            RejectionReason = ja.RecruiterNotes,
+            MatchScore = ja.MatchScore,
+            FitStatus = ja.FitStatus?.ToString(),
+            AiScoringStatus = ja.AiScoringStatus.ToString(),
+            RecruiterRating = ja.RecruiterRating
+        });
 
         // Upcoming Interviews
         var interviews = await _unitOfWork.Interviews.GetUpcomingAsync(candidateId);
-        var upcomingInterviews = _mapper.Map<IEnumerable<InterviewDto>>(interviews.Take(5));
+        var upcomingInterviews = interviews.Take(5).Select(i => new InterviewDto
+        {
+            Id = i.Id,
+            JobApplicationId = i.JobApplicationId,
+            CandidateId = i.JobApplication?.CandidateId ?? string.Empty,
+            CandidateName = i.JobApplication?.Candidate?.UserName ?? "Unknown",
+            JobTitle = i.JobApplication?.JobPost?.Title ?? "Unknown Job",
+            InterviewType = i.InterviewType.ToString(),
+            Status = i.Status.ToString(),
+            ScheduledAt = i.ScheduledAt,
+            DurationMinutes = i.DurationMinutes,
+            MeetingLink = i.MeetingLink,
+            Score = i.Score,
+            CompletedAt = i.CompletedAt,
+            CreatedAt = i.CreatedAt
+        });
 
         return new CandidateDashboardDto
         {
@@ -63,7 +93,29 @@ public class DashboardService : IDashboardService
 
         // Get Recent Job Posts (Last 5)
         var recentJobsPaged = await _unitOfWork.JobPosts.GetCompanyJobsAsync(companyId, new PaginationParams { PageNumber = 1, PageSize = 5 });
-        var recentJobs = _mapper.Map<IEnumerable<JobPostingDto>>(recentJobsPaged.Items);
+        var recentJobs = recentJobsPaged.Items.Select(jp => new JobPostingDto
+        {
+            Id = jp.Id,
+            Title = jp.Title,
+            Description = jp.Description,
+            Requirements = "",
+            Location = jp.Location ?? string.Empty,
+            EmploymentType = jp.JobType.ToString(),
+            CompanyId = jp.CompanyId,
+            CompanyName = company.Name,
+            IsActive = jp.IsActive,
+            ApplicationDeadline = jp.ExpiryDate,
+            CreatedAt = jp.CreatedAt,
+            UpdatedAt = jp.UpdatedAt ?? jp.CreatedAt,
+            ApplicationCount = jp.JobApplications?.Count ?? 0,
+            Department = jp.Department,
+            GPA = jp.GPA,
+            GPAPriority = jp.GPAPriority,
+            ExperienceMinYears = jp.ExperienceMinYears,
+            ExperienceMaxYears = jp.ExperienceMaxYears,
+            ExperiencePriority = jp.ExperiencePriority,
+            RequiredSkills = jp.JobPostSkills?.Select(jps => jps.Skill?.Name ?? "").Where(n => !string.IsNullOrEmpty(n)).ToList() ?? new List<string>()
+        });
 
         // Get Recent Applicants across all company jobs
         // This might need a custom repo method for "GetRecentApplicantsForCompanyAsync" if not available

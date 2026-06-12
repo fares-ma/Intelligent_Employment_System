@@ -50,6 +50,13 @@ public class CandidateService : ICandidateService
         var resumesData = await _resumeRepository.GetByCandidateAsync(candidateId);
         
         var dto = _mapper.Map<CandidateProfileDto>(candidate);
+        
+        if (!string.IsNullOrEmpty(dto.ProfilePicturePath))
+        {
+            var fileName = Path.GetFileName(dto.ProfilePicturePath);
+            dto.ProfilePicturePath = $"/api/Candidates/profile-picture/{fileName}";
+        }
+
         dto.Resumes = _mapper.Map<List<ResumeDto>>(resumesData);
         
         return dto;
@@ -131,31 +138,57 @@ public class CandidateService : ICandidateService
         if (candidate == null)
             throw new NotFoundException("Candidate not found");
 
+        var existingResumes = await _resumeRepository.GetByCandidateAsync(candidateId);
+        var existingResume = existingResumes.FirstOrDefault();
+
         // Save file first
         string filePath = await _fileStorageService.SaveFileAsync(fileName, fileStream, "resumes");
 
-        // Determine file size safely (stream may no longer be seekable after save)
+        // Determine file size safely
         long fileSizeBytes = fileStream.CanSeek ? fileStream.Length : new FileInfo(filePath).Length;
 
-        // Create resume entity — wrap in try/catch to clean up orphaned file on DB failure
         try
         {
-            var resume = new Resume
+            if (existingResume != null)
             {
-                CandidateId = candidateId,
-                OriginalFileName = fileName,
-                StoredFilePath = filePath,
-                FileType = Path.GetExtension(fileName).TrimStart('.').ToLower(),
-                FileSizeBytes = fileSizeBytes,
-                CreatedAt = DateTime.UtcNow
-            };
+                string oldPath = existingResume.StoredFilePath;
 
-            _resumeRepository.Create(resume);
-            await _unitOfWork.SaveChangesAsync();
+                existingResume.OriginalFileName = fileName;
+                existingResume.StoredFilePath = filePath;
+                existingResume.FileType = Path.GetExtension(fileName).TrimStart('.').ToLower();
+                existingResume.FileSizeBytes = fileSizeBytes;
+                // existingResume.CreatedAt is left intact
 
-            _logger.LogInformation("Resume uploaded for candidate {CandidateId}: {FileName}", candidateId, fileName);
+                _resumeRepository.Update(existingResume);
+                await _unitOfWork.SaveChangesAsync();
 
-            return _mapper.Map<ResumeDto>(resume);
+                _logger.LogInformation("Resume updated for candidate {CandidateId}: {FileName}", candidateId, fileName);
+
+                // Clean up old physical file safely
+                if (!string.IsNullOrEmpty(oldPath) && _fileStorageService.FileExists(oldPath))
+                    await _fileStorageService.DeleteFileAsync(oldPath);
+
+                return _mapper.Map<ResumeDto>(existingResume);
+            }
+            else
+            {
+                var resume = new Resume
+                {
+                    CandidateId = candidateId,
+                    OriginalFileName = fileName,
+                    StoredFilePath = filePath,
+                    FileType = Path.GetExtension(fileName).TrimStart('.').ToLower(),
+                    FileSizeBytes = fileSizeBytes,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _resumeRepository.Create(resume);
+                await _unitOfWork.SaveChangesAsync();
+
+                _logger.LogInformation("Resume uploaded for candidate {CandidateId}: {FileName}", candidateId, fileName);
+
+                return _mapper.Map<ResumeDto>(resume);
+            }
         }
         catch (Exception ex)
         {
@@ -167,6 +200,28 @@ public class CandidateService : ICandidateService
         }
     }
 
+    public async Task<(Stream stream, string contentType, string fileName)> DownloadResumeAsync(string candidateId, int resumeId)
+    {
+        var resume = await _resumeRepository.GetByIdAsync(resumeId);
+        if (resume == null)
+            throw new NotFoundException("Resume not found");
+
+        if (resume.CandidateId != candidateId)
+            throw new ForbiddenException("You cannot access this resume");
+
+        var stream = await _fileStorageService.GetFileStreamAsync(resume.StoredFilePath);
+        
+        string contentType = resume.FileType.ToLower() switch
+        {
+            "pdf" => "application/pdf",
+            "doc" => "application/msword",
+            "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            _ => "application/octet-stream"
+        };
+
+        return (stream, contentType, resume.OriginalFileName);
+    }
+
     public async Task DeleteResumeAsync(string candidateId, int resumeId)
     {
         var resume = await _resumeRepository.GetByIdAsync(resumeId);
@@ -176,12 +231,20 @@ public class CandidateService : ICandidateService
         if (resume.CandidateId != candidateId)
             throw new ForbiddenException("You cannot delete this resume");
 
-        // Delete physical file
+        try
+        {
+            _resumeRepository.Delete(resume);
+            await _unitOfWork.SaveChangesAsync();
+        }
+        catch (Exception ex) when (ex.InnerException?.Message.Contains("REFERENCE constraint", StringComparison.OrdinalIgnoreCase) == true 
+                                || ex.InnerException?.Message.Contains("FOREIGN KEY", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            throw new BadRequestException("Cannot delete this resume because it is linked to one or more job applications.");
+        }
+
+        // Delete physical file only after successful DB deletion
         if (_fileStorageService.FileExists(resume.StoredFilePath))
             await _fileStorageService.DeleteFileAsync(resume.StoredFilePath);
-
-        _resumeRepository.Delete(resume);
-        await _unitOfWork.SaveChangesAsync();
 
         _logger.LogInformation("Resume deleted: {ResumeId}", resumeId);
     }

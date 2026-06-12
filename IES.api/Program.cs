@@ -257,6 +257,18 @@ namespace IES.api
 
             app.UseMiddleware<GlobalExceptionHandler>();
 
+            // Serve profile pictures at the root path so the frontend can access them directly by filename
+            var profilePicturesPath = Path.Combine(builder.Environment.ContentRootPath, "Uploads", "profile-pictures");
+            if (!Directory.Exists(profilePicturesPath))
+            {
+                Directory.CreateDirectory(profilePicturesPath);
+            }
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(profilePicturesPath),
+                RequestPath = "" // Map to root
+            });
+
             // Configure ForwardedHeaders for proxy environments (IIS, load balancers, etc.)
             var startupLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
             var knownProxies = builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>();

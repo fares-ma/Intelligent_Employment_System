@@ -27,6 +27,11 @@ public interface ICandidateService
     Task<ResumeDto> UploadResumeAsync(string candidateId, string fileName, Stream fileStream);
 
     /// <summary>
+    /// Download resume
+    /// </summary>
+    Task<(Stream stream, string contentType, string fileName)> DownloadResumeAsync(string candidateId, int resumeId);
+
+    /// <summary>
     /// Delete resume
     /// </summary>
     Task DeleteResumeAsync(string candidateId, int resumeId);
