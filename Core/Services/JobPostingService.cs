@@ -100,6 +100,7 @@ public class JobPostingService : IJobPostingService
             JobType = jobType,
             ExpiryDate = request.ApplicationDeadline,
             Location = request.Location,
+            IsPublished = true,
             IsActive = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,

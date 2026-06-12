@@ -44,7 +44,24 @@ public class DashboardsController : ControllerBase
         if (userIdClaim == null || string.IsNullOrEmpty(userIdClaim.Value))
             return Unauthorized("User identifier not found.");
 
-        if (!User.IsInRole("Admin"))
+        var companyIdClaim = User.FindFirst("companyId");
+        if (companyIdClaim != null && int.TryParse(companyIdClaim.Value, out var claimCompanyId))
+        {
+            if (companyId == 0)
+            {
+                companyId = claimCompanyId;
+            }
+            else if (companyId != claimCompanyId)
+            {
+                return Forbid();
+            }
+        }
+        else if (companyId == 0)
+        {
+            return BadRequest("Company ID is required.");
+        }
+
+        if (!User.IsInRole("Admin") && companyIdClaim == null)
         {
             var belongsToCompany = await _authService.UserBelongsToCompanyAsync(userIdClaim.Value, companyId);
             if (!belongsToCompany) return Forbid();

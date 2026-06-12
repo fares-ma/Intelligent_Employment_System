@@ -85,7 +85,7 @@ public class DashboardService : IDashboardService
         var company = await _unitOfWork.Companies.GetByIdAsync(companyId);
         if (company == null) throw new NotFoundException("Company not found");
 
-        var activeJobsCount = await _unitOfWork.JobPosts.CountAsync(jp => jp.CompanyId == companyId && jp.IsActive && jp.IsPublished);
+        var activeJobsCount = await _unitOfWork.JobPosts.CountAsync(jp => jp.CompanyId == companyId && jp.IsActive && jp.DeletedAt == null);
 
         var totalApplicantsCount = await _unitOfWork.JobApplications.CountAsync(ja => ja.JobPost.CompanyId == companyId);
 
