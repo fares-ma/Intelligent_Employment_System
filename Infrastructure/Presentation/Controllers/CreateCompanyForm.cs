@@ -19,9 +19,8 @@ public sealed class CreateCompanyForm
     [StringLength(500)]
     public string? Website { get; set; }
 
-    [Required]
-    [StringLength(50, MinimumLength = 1)]
-    public string TaxNumber { get; set; } = string.Empty;
+    [StringLength(50)]
+    public string? TaxNumber { get; set; }
 
     [StringLength(1000)]
     public string? Description { get; set; }

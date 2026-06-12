@@ -169,10 +169,6 @@ public class AuthService : IAuthService
         if (!Enum.TryParse<Gender>(request.Gender, true, out var gender))
             throw new BadRequestException("Invalid gender. Must be 'Male', 'Female', or 'Other'");
 
-        // VALIDATE COMPANY TAX NUMBER UNIQUENESS FIRST (before creating user to prevent orphaned records)
-        var existingCompany = await _unitOfWork.Companies.GetByTaxNumberAsync(request.TaxNumber);
-        if (existingCompany != null)
-            throw new ConflictException("Company with this tax number already exists");
 
         await EnsureRolesExistAsync();
 
@@ -204,7 +200,7 @@ public class AuthService : IAuthService
             var company = new Company
             {
                 Name = request.CompanyName,
-                TaxNumber = request.TaxNumber,
+                TaxNumber = Guid.NewGuid().ToString(),
                 Industry = request.Industry,
                 Website = request.Website,
                 IsActive = true,

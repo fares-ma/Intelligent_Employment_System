@@ -157,8 +157,8 @@ public class CompanyService : ICompanyService
         if (industry.Length is < 1 or > 100)
             throw new BadRequestException("Industry must be between 1 and 100 characters");
 
-        if (string.IsNullOrEmpty(taxNumber) || taxNumber.Length > 50)
-            throw new BadRequestException("Tax number is required and must be at most 50 characters");
+        if (taxNumber.Length > 50)
+            throw new BadRequestException("Tax number must be at most 50 characters");
 
         if (description is not null && description.Length > 1000)
             throw new BadRequestException("Company description cannot exceed 1000 characters");
@@ -172,16 +172,14 @@ public class CompanyService : ICompanyService
             }
         }
 
-        var existing = await _unitOfWork.Companies.GetByTaxNumberAsync(taxNumber);
-        if (existing is not null)
-            throw new ConflictException("Company with this tax number already exists");
+
 
         var company = new Company
         {
             Name = name,
             Industry = industry,
             Website = website,
-            TaxNumber = taxNumber,
+            TaxNumber = Guid.NewGuid().ToString(),
             Description = description,
             LogoPath = null,
             IsActive = true,

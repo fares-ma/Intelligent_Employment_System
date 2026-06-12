@@ -16,7 +16,7 @@ public class RegisterCompanyRequestDto
 
     // Company info
     public required string CompanyName { get; set; }
-    public required string TaxNumber { get; set; }
+    public string? TaxNumber { get; set; }
     public string? Industry { get; set; }
     public string? Website { get; set; }
 }

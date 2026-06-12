@@ -11,7 +11,7 @@ public class CreateCompanyRequestDto
 
     public string? Website { get; set; }
 
-    public string TaxNumber { get; set; } = string.Empty;
+    public string? TaxNumber { get; set; }
 
     public string? Description { get; set; }
 }
