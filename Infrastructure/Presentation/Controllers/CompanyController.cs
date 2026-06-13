@@ -223,13 +223,7 @@ public class CompanyController : ControllerBase
         if (file == null || file.Length == 0)
             return BadRequest(new { message = "Image file is required and cannot be empty" });
 
-        var extension = Path.GetExtension(file.FileName).ToLower();
-        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png" };
-        if (!allowedExtensions.Contains(extension))
-            return BadRequest(new { message = "Only .jpg, .jpeg, .png images are allowed" });
-
-        if (file.Length > 5 * 1024 * 1024)
-            return BadRequest(new { message = "Image size cannot exceed 5MB" });
+        // Extension and size validation is handled by FileStorageService
 
         _logger.LogInformation("Company logo upload for company {CompanyId}: {FileName}", companyId, file.FileName);
 

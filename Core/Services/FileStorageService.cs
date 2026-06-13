@@ -70,7 +70,8 @@ public class FileStorageService : IFileStorageService
 
             // Determine allowed extensions based on folder
             bool isImageFolder = folder.Contains("profile-picture", StringComparison.OrdinalIgnoreCase)
-                || folder.Contains("company-brand", StringComparison.OrdinalIgnoreCase);
+                || folder.Contains("company-brand", StringComparison.OrdinalIgnoreCase)
+                || folder.Contains("company-logo", StringComparison.OrdinalIgnoreCase);
             IEnumerable<string> allowedExtensions = isImageFolder ? ImageExtensions : _settings.AllowedExtensions;
 
             if (!allowedExtensions.Contains(extension))
