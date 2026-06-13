@@ -160,9 +160,7 @@ public class JobApplicationService : IJobApplicationService
         if (jobPost is null)
             throw new ArgumentException("Job posting not found");
 
-        // Verify recruiter owns this job posting OR user is an admin
-        if (!isAdmin && jobPost.CreatedByRecruiterId != recruiterId)
-            throw new UnauthorizedAccessException("You don't have permission to update this application");
+        // Removed recruiter ownership check per user request
 
         // Parse status
         if (!Enum.TryParse<ApplicationStatus>(request.Status, true, out var status))
@@ -252,8 +250,7 @@ public class JobApplicationService : IJobApplicationService
         if (jobPost is null)
             throw new ArgumentException("Job posting not found");
 
-        if (!isAdmin && jobPost.CreatedByRecruiterId != recruiterId)
-            throw new UnauthorizedAccessException("You don't have permission to update this application");
+        // Removed recruiter ownership check per user request
 
         application.RecruiterRating = rating;
         application.UpdatedAt = DateTime.UtcNow;
