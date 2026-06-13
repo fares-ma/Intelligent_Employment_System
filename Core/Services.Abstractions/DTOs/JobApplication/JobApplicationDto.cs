@@ -13,9 +13,13 @@ public class JobApplicationDto
     public string CandidateId { get; set; } = string.Empty;
 
     /// <summary>
-    /// Candidate username
+    /// Candidate username or full name
     /// </summary>
     public string CandidateName { get; set; } = string.Empty;
+
+    public string CandidateEmail { get; set; } = string.Empty;
+
+    public string? CandidateProfilePictureUrl { get; set; }
 
     /// <summary>
     /// ID of the job posting

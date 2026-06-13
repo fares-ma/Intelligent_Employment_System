@@ -33,6 +33,11 @@ public interface IJobApplicationService
     Task<JobApplicationDto> UpdateApplicationStatusAsync(int applicationId, string recruiterId, bool isAdmin, UpdateJobApplicationDto request);
 
     /// <summary>
+    /// Update recruiter rating (recruiter/admin only)
+    /// </summary>
+    Task<JobApplicationDto> UpdateRecruiterRatingAsync(int applicationId, string recruiterId, bool isAdmin, int rating);
+
+    /// <summary>
     /// Withdraw application (candidate only)
     /// </summary>
     Task WithdrawApplicationAsync(int applicationId, string candidateId);

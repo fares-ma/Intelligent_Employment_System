@@ -41,6 +41,11 @@ public interface ICompanyService
     Task<CompanyProfileDto> UpdateCompanyAsync(string companyId, string userId, UpdateCompanyDto request);
 
     /// <summary>
+    /// Update company logo
+    /// </summary>
+    Task<string> UpdateLogoAsync(string companyId, string fileName, Stream fileStream);
+
+    /// <summary>
     /// Transfer admin role to another recruiter in the company
     /// Only current admin can initiate transfer
     /// New admin must be a Standard recruiter in the same company

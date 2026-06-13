@@ -48,8 +48,8 @@ public class JobApplicationService : IJobApplicationService
         if (jobPost is null)
             throw new ArgumentException("Job posting not found");
 
-        if (!jobPost.IsActive)
-            throw new ArgumentException("This job posting is no longer active");
+        if (!jobPost.IsActive || jobPost.IsDeleted || jobPost.Status != "ACTIVE")
+            throw new ArgumentException("This job is no longer active and cannot accept applications");
 
         // Check if candidate already applied
         var alreadyApplied = await _unitOfWork.JobApplications.ExistsAsync(candidateId, request.JobPostId);
@@ -237,6 +237,34 @@ public class JobApplicationService : IJobApplicationService
         return MapToDto(application, candidate, jobPost);
     }
 
+    public async Task<JobApplicationDto> UpdateRecruiterRatingAsync(int applicationId, string recruiterId, bool isAdmin, int rating)
+    {
+        _logger.LogInformation("Updating rating for application {ApplicationId}", applicationId);
+
+        if (rating < 1 || rating > 10)
+            throw new ArgumentException("Rating must be between 1 and 10");
+
+        var application = await _unitOfWork.JobApplications.GetByIdAsync(applicationId);
+        if (application is null)
+            throw new ArgumentException("Application not found");
+
+        var jobPost = await _unitOfWork.JobPosts.GetByIdAsync(application.JobPostId);
+        if (jobPost is null)
+            throw new ArgumentException("Job posting not found");
+
+        if (!isAdmin && jobPost.CreatedByRecruiterId != recruiterId)
+            throw new UnauthorizedAccessException("You don't have permission to update this application");
+
+        application.RecruiterRating = rating;
+        application.UpdatedAt = DateTime.UtcNow;
+
+        _unitOfWork.JobApplications.Update(application);
+        await _unitOfWork.SaveChangesAsync();
+
+        var candidate = await _unitOfWork.Candidates.GetByIdAsync(application.CandidateId);
+        return MapToDto(application, candidate, jobPost);
+    }
+
     public async Task WithdrawApplicationAsync(int applicationId, string candidateId)
     {
         var application = await _unitOfWork.JobApplications.GetByIdAsync(applicationId);
@@ -295,7 +323,9 @@ public class JobApplicationService : IJobApplicationService
         {
             Id = application.Id,
             CandidateId = application.CandidateId,
-            CandidateName = candidate?.UserName ?? string.Empty,
+            CandidateName = candidate != null ? $"{candidate.FirstName} {candidate.LastName}".Trim() : string.Empty,
+            CandidateEmail = candidate?.Email ?? string.Empty,
+            CandidateProfilePictureUrl = candidate?.ProfilePicturePath,
             JobPostId = application.JobPostId,
             JobTitle = jobPost?.Title ?? string.Empty,
             Status = application.Status.ToString(),

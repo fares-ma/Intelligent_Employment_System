@@ -210,10 +210,15 @@ public class JobPostingService : IJobPostingService
         if (jobPost.CreatedByRecruiterId != recruiterId)
             throw new UnauthorizedAccessException("You don't have permission to delete this job posting");
 
-        _unitOfWork.JobPosts.Delete(jobPost);
+        jobPost.IsDeleted = true;
+        jobPost.Status = "CLOSED";
+        jobPost.DeletedAt = DateTime.UtcNow;
+        jobPost.DeletedBy = recruiterId;
+
+        _unitOfWork.JobPosts.Update(jobPost);
         await _unitOfWork.SaveChangesAsync();
 
-        _logger.LogInformation("Job posting {JobPostingId} deleted", jobPostingId);
+        _logger.LogInformation("Job posting {JobPostingId} marked as deleted/closed", jobPostingId);
     }
 
     public async Task<IEnumerable<JobPostingDto>> SearchJobPostingsAsync(string searchTerm, int pageNumber = 1, int pageSize = 20)
@@ -225,7 +230,7 @@ public class JobPostingService : IJobPostingService
         var term = searchTerm.ToLower();
 
         var jobPosts = await _unitOfWork.JobPosts.FindAsync(
-            jp => jp.IsActive && (
+            jp => jp.IsActive && !jp.IsDeleted && jp.Status == "ACTIVE" && (
                 jp.Title.ToLower().Contains(term) ||
                 jp.Description.ToLower().Contains(term)
             )
@@ -248,7 +253,7 @@ public class JobPostingService : IJobPostingService
             throw new ArgumentException("Skill not found");
 
         var jobPosts = await _unitOfWork.JobPosts.FindAsync(
-            jp => jp.IsActive && jp.JobPostSkills.Any(jps => jps.SkillId == skillId)
+            jp => jp.IsActive && !jp.IsDeleted && jp.Status == "ACTIVE" && jp.JobPostSkills.Any(jps => jps.SkillId == skillId)
         );
 
         return jobPosts
@@ -269,7 +274,7 @@ public class JobPostingService : IJobPostingService
         var jobType = ParseEmploymentType(employmentType);
 
         var jobPosts = await _unitOfWork.JobPosts.FindAsync(
-            jp => jp.IsActive && jp.JobType == jobType
+            jp => jp.IsActive && !jp.IsDeleted && jp.Status == "ACTIVE" && jp.JobType == jobType
         );
 
         return jobPosts
@@ -330,8 +335,9 @@ public class JobPostingService : IJobPostingService
             dtos.Add(new Services.Abstractions.DTOs.JobPosting.JobApplicantDto
             {
                 CandidateId = candidate?.Id ?? string.Empty,
-                FullName = candidate?.UserName ?? "Unknown",
+                FullName = candidate != null ? $"{candidate.FirstName} {candidate.LastName}".Trim() : "Unknown",
                 Email = candidate?.Email ?? "Unknown",
+                CandidateProfilePictureUrl = candidate?.ProfilePicturePath,
                 ApplicationStatus = app.Status.ToString(),
                 CurrentStage = app.Status.ToString(),
                 ApplicationDate = app.AppliedAt,

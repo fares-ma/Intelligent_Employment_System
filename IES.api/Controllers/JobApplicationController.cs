@@ -237,6 +237,37 @@ public class JobApplicationController : ControllerBase
     }
 
     /// <summary>
+    /// Update recruiter rating (Recruiter/Admin only)
+    /// </summary>
+    [HttpPut("{id}/rating")]
+    [Authorize(Roles = "Recruiter,Admin")]
+    public async Task<ActionResult<JobApplicationDto>> UpdateRecruiterRating(
+        int id,
+        [FromBody] int rating)
+    {
+        try
+        {
+            var recruiterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? throw new UnauthorizedAccessException("User identity not found");
+
+            var isAdmin = User.IsInRole("Admin");
+
+            var result = await _service.UpdateRecruiterRatingAsync(id, recruiterId, isAdmin, rating);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning("Authorization error in UpdateRecruiterRating: {Message}", ex.Message);
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = "You don't have permission to update this application" });
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning("Validation error in UpdateRecruiterRating: {Message}", ex.Message);
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Update application status (Recruiter/Admin only)
     /// </summary>
     [HttpPut("{id}/status")]

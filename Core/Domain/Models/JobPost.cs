@@ -35,6 +35,10 @@ public class JobPost
 
     public bool IsActive { get; set; } = true;
 
+    public bool IsDeleted { get; set; } = false;
+
+    public string Status { get; set; } = "ACTIVE";
+
     public DateTime? DeletedAt { get; set; }
 
     public string? DeletedBy { get; set; }

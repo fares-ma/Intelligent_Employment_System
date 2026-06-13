@@ -171,6 +171,7 @@ namespace IES.api
             builder.Services.AddScoped<IAuthService, AuthService>();
             builder.Services.AddScoped<ICompanyService, CompanyService>();
             builder.Services.AddScoped<ICandidateService, CandidateService>();
+            builder.Services.AddScoped<IRecruiterService, RecruiterService>();
             builder.Services.AddScoped<IFileStorageService, FileStorageService>();
             builder.Services.AddScoped<IInviteCodeService, InviteCodeService>();
             builder.Services.AddScoped<IEducationService, EducationService>();
@@ -259,7 +260,6 @@ namespace IES.api
 
             app.UseMiddleware<GlobalExceptionHandler>();
 
-            // Serve profile pictures at the root path so the frontend can access them directly by filename
             var profilePicturesPath = Path.Combine(builder.Environment.ContentRootPath, "Uploads", "profile-pictures");
             if (!Directory.Exists(profilePicturesPath))
             {
@@ -269,6 +269,17 @@ namespace IES.api
             {
                 FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(profilePicturesPath),
                 RequestPath = "" // Map to root
+            });
+
+            var companyLogosPath = Path.Combine(builder.Environment.ContentRootPath, "Uploads", "company-logos");
+            if (!Directory.Exists(companyLogosPath))
+            {
+                Directory.CreateDirectory(companyLogosPath);
+            }
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(companyLogosPath),
+                RequestPath = "/company-logos"
             });
 
             // Configure ForwardedHeaders for proxy environments (IIS, load balancers, etc.)

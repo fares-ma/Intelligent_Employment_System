@@ -9,4 +9,5 @@ public class JobApplicantDto
     public string CurrentStage { get; set; } = string.Empty;
     public DateTime ApplicationDate { get; set; }
     public decimal? MatchScore { get; set; }
+    public string? CandidateProfilePictureUrl { get; set; }
 }

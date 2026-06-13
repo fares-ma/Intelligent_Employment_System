@@ -254,6 +254,33 @@ public class CompanyService : ICompanyService
         return rel.Replace('\\', '/');
     }
 
+    public async Task<string> UpdateLogoAsync(string companyId, string fileName, Stream fileStream)
+    {
+        if (!int.TryParse(companyId, out var id))
+        {
+            throw new BadRequestException("Invalid company ID format");
+        }
+
+        var company = await _unitOfWork.Companies.GetByIdAsync(id);
+        if (company is null)
+        {
+            throw new NotFoundException($"Company with ID '{id}' not found");
+        }
+
+        if (!string.IsNullOrWhiteSpace(company.LogoPath))
+        {
+            await _fileStorageService.DeleteFileAsync(company.LogoPath);
+        }
+
+        var newPath = await _fileStorageService.SaveFileAsync(fileName, fileStream, "company-logos");
+        company.LogoPath = ToRelativeStoragePath(newPath);
+
+        _unitOfWork.Companies.Update(company);
+        await _unitOfWork.SaveChangesAsync();
+
+        return company.LogoPath;
+    }
+
     /// <summary>
     /// Update company information
     /// Only admin can update

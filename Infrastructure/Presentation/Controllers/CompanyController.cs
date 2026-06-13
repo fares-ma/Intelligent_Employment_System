@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Services.Abstractions;
 using Services.Abstractions.DTOs.Company;
 using Services.Abstractions.DTOs.InviteCode;
+using Domain.Exceptions;
 
 namespace Presentation.Controllers;
 
@@ -201,6 +202,56 @@ public class CompanyController : ControllerBase
         {
             _logger.LogError(ex, "Error transferring admin for company {CompanyId}", companyId);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Update company logo
+    /// </summary>
+    [HttpPut("{companyId}/logo")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<string>> UpdateLogo(string companyId, IFormFile file)
+    {
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
+
+        // Validate file
+        if (file == null || file.Length == 0)
+            return BadRequest(new { message = "Image file is required and cannot be empty" });
+
+        var extension = Path.GetExtension(file.FileName).ToLower();
+        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png" };
+        if (!allowedExtensions.Contains(extension))
+            return BadRequest(new { message = "Only .jpg, .jpeg, .png images are allowed" });
+
+        if (file.Length > 5 * 1024 * 1024)
+            return BadRequest(new { message = "Image size cannot exceed 5MB" });
+
+        _logger.LogInformation("Company logo upload for company {CompanyId}: {FileName}", companyId, file.FileName);
+
+        try
+        {
+            using (var stream = file.OpenReadStream())
+            {
+                var picturePath = await _companyService.UpdateLogoAsync(companyId, file.FileName, stream);
+                return Ok(new { picturePath });
+            }
+        }
+        catch (ForbiddenException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+        catch (NotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (BadRequestException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
     }
 
