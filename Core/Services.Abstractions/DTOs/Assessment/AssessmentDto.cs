@@ -16,6 +16,10 @@ public class AssessmentDto
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
     
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
+    public string? Instructions { get; set; }
+    
     public List<QuestionDto> Questions { get; set; } = new List<QuestionDto>();
 }
 

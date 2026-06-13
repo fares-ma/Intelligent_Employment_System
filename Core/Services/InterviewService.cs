@@ -15,11 +15,13 @@ public class InterviewService : IInterviewService
 {
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<InterviewService> _logger;
+    private readonly IEmailService _emailService;
 
-    public InterviewService(IUnitOfWork unitOfWork, ILogger<InterviewService> logger)
+    public InterviewService(IUnitOfWork unitOfWork, ILogger<InterviewService> logger, IEmailService emailService)
     {
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _emailService = emailService;
     }
 
     public async Task<InterviewDto> ScheduleInterviewAsync(string recruiterId, CreateInterviewDto request)
@@ -64,7 +66,44 @@ public class InterviewService : IInterviewService
         };
 
         _unitOfWork.Interviews.Create(interview);
+        
+        // Automation: Set Application Status to Interview
+        if (application.Status != ApplicationStatus.Interview)
+        {
+            application.Status = ApplicationStatus.Interview;
+            application.UpdatedAt = DateTime.UtcNow;
+            _unitOfWork.JobApplications.Update(application);
+        }
+        
         await _unitOfWork.SaveChangesAsync();
+
+        // Automation: Send Interview Email
+        var candidate = await _unitOfWork.Candidates.GetByIdAsync(application.CandidateId);
+        if (candidate != null && !string.IsNullOrEmpty(candidate.Email))
+        {
+            try
+            {
+                var subject = $"Interview Invitation: {jobPost.Title}";
+                var body = $"<h1>Interview Scheduled</h1><p>Dear {candidate.UserName},</p><p>An interview has been scheduled for your application to the <strong>{jobPost.Title}</strong> position.</p>";
+                
+                body += $"<ul><li><strong>Type:</strong> {interviewType}</li>";
+                body += $"<li><strong>Date & Time (UTC):</strong> {scheduledAtUtc.ToString("g")}</li>";
+                body += $"<li><strong>Duration:</strong> {request.DurationMinutes} minutes</li></ul>";
+                
+                if (!string.IsNullOrEmpty(request.MeetingLink))
+                {
+                    body += $"<p><strong>Meeting Link:</strong> <a href='{request.MeetingLink}'>Join Interview</a></p>";
+                }
+                
+                body += "<p>Please ensure you are ready 5 minutes before the scheduled time.</p><p>Best regards,</p>";
+                
+                await _emailService.SendEmailAsync(candidate.Email, subject, body);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send automated interview email to candidate {CandidateId}", candidate.Id);
+            }
+        }
 
         _logger.LogInformation("Interview scheduled with ID {InterviewId}", interview.Id);
         return await MapToDtoAsync(interview);

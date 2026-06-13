@@ -155,6 +155,8 @@ namespace IES.api
             builder.Services.AddHostedService<Services.Background.TalentXScoringPollingService>();
             builder.Services.AddTalentXIntegration(builder.Configuration);
 
+            builder.Services.Configure<Services.Abstractions.DTOs.Settings.EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+
             // ── Repository & UnitOfWork DI ──
             builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<ICandidateRepository, CandidateRepository>();

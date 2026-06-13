@@ -15,15 +15,18 @@ public class AssessmentService : IAssessmentService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMapper _mapper;
     private readonly ILogger<AssessmentService> _logger;
+    private readonly IEmailService _emailService;
 
     public AssessmentService(
         IUnitOfWork unitOfWork,
         IMapper mapper,
-        ILogger<AssessmentService> logger)
+        ILogger<AssessmentService> logger,
+        IEmailService emailService)
     {
         _unitOfWork = unitOfWork;
         _mapper = mapper;
         _logger = logger;
+        _emailService = emailService;
     }
 
     public async Task<AssessmentDto> CreateAssessmentAsync(CreateAssessmentDto request, string userId)
@@ -37,6 +40,45 @@ public class AssessmentService : IAssessmentService
         
         _unitOfWork.Assessments.Create(assessment);
         await _unitOfWork.SaveChangesAsync();
+        
+        // Automated Emails for candidates already in ASSESSMENT status
+        var waitingCandidates = await _unitOfWork.JobApplications.FindAsync(ja => 
+            ja.JobPostId == request.JobPostId && 
+            ja.Status == Domain.Enums.ApplicationStatus.Assessment);
+            
+        if (waitingCandidates.Any())
+        {
+            foreach (var app in waitingCandidates)
+            {
+                var candidate = await _unitOfWork.Candidates.GetByIdAsync(app.CandidateId);
+                if (candidate != null && !string.IsNullOrEmpty(candidate.Email))
+                {
+                    try
+                    {
+                        var subject = $"Assessment Invitation: {jobPost.Title}";
+                        var body = $"<h1>Assessment Invitation</h1><p>Dear {candidate.UserName},</p><p>You have been invited to take the assessment <strong>{assessment.Title}</strong> for the position of {jobPost.Title}.</p>";
+                        
+                        if (assessment.StartDate.HasValue)
+                            body += $"<p><strong>Available From:</strong> {assessment.StartDate.Value.ToString("g")}</p>";
+                        if (assessment.EndDate.HasValue)
+                            body += $"<p><strong>Available Until:</strong> {assessment.EndDate.Value.ToString("g")}</p>";
+                        
+                        body += $"<p><strong>Time Limit:</strong> {assessment.TimeLimitMinutes} minutes</p>";
+                        
+                        if (!string.IsNullOrEmpty(assessment.Instructions))
+                            body += $"<p><strong>Instructions:</strong> {assessment.Instructions}</p>";
+                            
+                        body += "<p>Good luck!</p>";
+                        
+                        await _emailService.SendEmailAsync(candidate.Email, subject, body);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to send automated assessment email to candidate {CandidateId}", candidate.Id);
+                    }
+                }
+            }
+        }
         
         return _mapper.Map<AssessmentDto>(assessment);
     }
@@ -155,6 +197,17 @@ public class AssessmentService : IAssessmentService
 
         if (jobApplication.JobPostId != assessment.JobPostId)
             throw new BadRequestException("Job application does not match this assessment's job posting");
+
+        // Validate application status
+        if (jobApplication.Status != Domain.Enums.ApplicationStatus.Assessment)
+            throw new BadRequestException("You are not currently authorized to take this assessment.");
+
+        // Validate assessment window
+        if (assessment.StartDate.HasValue && DateTime.UtcNow < assessment.StartDate.Value)
+            throw new BadRequestException("This assessment is not available yet.");
+
+        if (assessment.EndDate.HasValue && DateTime.UtcNow > assessment.EndDate.Value)
+            throw new BadRequestException("This assessment has expired.");
 
         // Check if already started
         var existing = await _unitOfWork.CandidateAssessments.GetByCandidateAndAssessmentAsync(candidateId, assessmentId);

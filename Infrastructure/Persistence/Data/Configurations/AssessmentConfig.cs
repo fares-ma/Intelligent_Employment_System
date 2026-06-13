@@ -30,6 +30,9 @@ public class AssessmentConfig : IEntityTypeConfiguration<Assessment>
         builder.Property(a => a.TimeLimitMinutes)
             .HasDefaultValue(60);
 
+        builder.Property(a => a.Instructions)
+            .IsRequired(false);
+
         builder.Property(a => a.IsActive)
             .HasDefaultValue(true);
 

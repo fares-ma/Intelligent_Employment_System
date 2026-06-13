@@ -30,7 +30,7 @@ public interface IJobApplicationService
     /// <summary>
     /// Update application status (recruiter/admin only)
     /// </summary>
-    Task<JobApplicationDto> UpdateApplicationStatusAsync(int applicationId, string recruiterId, UpdateJobApplicationDto request);
+    Task<JobApplicationDto> UpdateApplicationStatusAsync(int applicationId, string recruiterId, bool isAdmin, UpdateJobApplicationDto request);
 
     /// <summary>
     /// Withdraw application (candidate only)

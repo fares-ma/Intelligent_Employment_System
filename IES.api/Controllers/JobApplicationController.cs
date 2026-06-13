@@ -250,7 +250,9 @@ public class JobApplicationController : ControllerBase
             var recruiterId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                 ?? throw new UnauthorizedAccessException("User identity not found");
 
-            var result = await _service.UpdateApplicationStatusAsync(id, recruiterId, request);
+            var isAdmin = User.IsInRole("Admin");
+
+            var result = await _service.UpdateApplicationStatusAsync(id, recruiterId, isAdmin, request);
             return Ok(result);
         }
         catch (UnauthorizedAccessException ex)

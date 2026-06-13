@@ -18,15 +18,18 @@ public class JobApplicationService : IJobApplicationService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ITalentXScoringService _talentXScoringService;
     private readonly ILogger<JobApplicationService> _logger;
+    private readonly IEmailService _emailService;
 
     public JobApplicationService(
         IUnitOfWork unitOfWork,
         ITalentXScoringService talentXScoringService,
-        ILogger<JobApplicationService> logger)
+        ILogger<JobApplicationService> logger,
+        IEmailService emailService)
     {
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
         _talentXScoringService = talentXScoringService;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _emailService = emailService;
     }
 
     public async Task<JobApplicationDto> ApplyForJobAsync(string candidateId, CreateJobApplicationDto request)
@@ -144,7 +147,7 @@ public class JobApplicationService : IJobApplicationService
         return applications;
     }
 
-    public async Task<JobApplicationDto> UpdateApplicationStatusAsync(int applicationId, string recruiterId, UpdateJobApplicationDto request)
+    public async Task<JobApplicationDto> UpdateApplicationStatusAsync(int applicationId, string recruiterId, bool isAdmin, UpdateJobApplicationDto request)
     {
         _logger.LogInformation("Updating application {ApplicationId} status", applicationId);
         ValidateUpdateApplicationInput(request);
@@ -157,8 +160,8 @@ public class JobApplicationService : IJobApplicationService
         if (jobPost is null)
             throw new ArgumentException("Job posting not found");
 
-        // Verify recruiter owns this job posting
-        if (jobPost.CreatedByRecruiterId != recruiterId)
+        // Verify recruiter owns this job posting OR user is an admin
+        if (!isAdmin && jobPost.CreatedByRecruiterId != recruiterId)
             throw new UnauthorizedAccessException("You don't have permission to update this application");
 
         // Parse status
@@ -178,6 +181,59 @@ public class JobApplicationService : IJobApplicationService
         await _unitOfWork.SaveChangesAsync();
 
         var candidate = await _unitOfWork.Candidates.GetByIdAsync(application.CandidateId);
+        
+        // Automated Emails
+        if (candidate != null)
+        {
+            try
+            {
+                if (status == ApplicationStatus.Assessment)
+                {
+                    // Check if assessment exists
+                    var assessment = await _unitOfWork.Assessments.GetByJobPostAsync(jobPost.Id);
+                    if (assessment != null && assessment.Any())
+                    {
+                        var activeAssessment = assessment.FirstOrDefault(a => a.IsActive);
+                        if (activeAssessment != null)
+                        {
+                            var subject = $"Assessment Invitation: {jobPost.Title}";
+                            var body = $"<h1>Assessment Invitation</h1><p>Dear {candidate.UserName},</p><p>You have been invited to take the assessment <strong>{activeAssessment.Title}</strong> for the position of {jobPost.Title}.</p>";
+                            
+                            if (activeAssessment.StartDate.HasValue)
+                                body += $"<p><strong>Available From:</strong> {activeAssessment.StartDate.Value.ToString("g")}</p>";
+                            if (activeAssessment.EndDate.HasValue)
+                                body += $"<p><strong>Available Until:</strong> {activeAssessment.EndDate.Value.ToString("g")}</p>";
+                            
+                            body += $"<p><strong>Time Limit:</strong> {activeAssessment.TimeLimitMinutes} minutes</p>";
+                            
+                            if (!string.IsNullOrEmpty(activeAssessment.Instructions))
+                                body += $"<p><strong>Instructions:</strong> {activeAssessment.Instructions}</p>";
+                                
+                            body += "<p>Good luck!</p>";
+                            
+                            await _emailService.SendEmailAsync(candidate.Email ?? "", subject, body);
+                        }
+                    }
+                }
+                else if (status == ApplicationStatus.Accepted)
+                {
+                    var subject = $"Congratulations! Job Offer for {jobPost.Title}";
+                    var body = $"<h1>Congratulations!</h1><p>Dear {candidate.UserName},</p><p>We are thrilled to inform you that you have been accepted for the <strong>{jobPost.Title}</strong> position.</p><p>Our team will contact you shortly with the next steps.</p>";
+                    await _emailService.SendEmailAsync(candidate.Email ?? "", subject, body);
+                }
+                else if (status == ApplicationStatus.Rejected)
+                {
+                    var subject = $"Update regarding your application for {jobPost.Title}";
+                    var body = $"<h1>Application Update</h1><p>Dear {candidate.UserName},</p><p>Thank you for your interest in the <strong>{jobPost.Title}</strong> position.</p><p>We regret to inform you that we will not be moving forward with your application at this time.</p><p>We wish you the best in your future endeavors.</p>";
+                    await _emailService.SendEmailAsync(candidate.Email ?? "", subject, body);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send automated email for application status update. Application ID: {AppId}, Status: {Status}", applicationId, status);
+            }
+        }
+
         return MapToDto(application, candidate, jobPost);
     }
 

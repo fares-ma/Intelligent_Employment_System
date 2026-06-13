@@ -20,6 +20,12 @@ public class Assessment
 
     public int TimeLimitMinutes { get; set; }
 
+    public DateTime? StartDate { get; set; }
+
+    public DateTime? EndDate { get; set; }
+
+    public string? Instructions { get; set; }
+
     /// <summary>
     /// Auto-calculated: sum of question points.
     /// </summary>

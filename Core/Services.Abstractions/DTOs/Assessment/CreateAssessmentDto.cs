@@ -23,6 +23,12 @@ public class CreateAssessmentDto
 
     public int? PassingScore { get; set; }
 
+    public DateTime? StartDate { get; set; }
+
+    public DateTime? EndDate { get; set; }
+
+    public string? Instructions { get; set; }
+
     public List<CreateQuestionDto> Questions { get; set; } = new List<CreateQuestionDto>();
 }
 
