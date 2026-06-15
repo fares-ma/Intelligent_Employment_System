@@ -209,7 +209,6 @@ public class CompanyController : ControllerBase
     /// Update company logo
     /// </summary>
     [HttpPut("{companyId}/logo")]
-    [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -231,7 +230,7 @@ public class CompanyController : ControllerBase
         {
             using (var stream = file.OpenReadStream())
             {
-                var picturePath = await _companyService.UpdateLogoAsync(companyId, file.FileName, stream);
+                var picturePath = await _companyService.UpdateLogoAsync(companyId, userId, file.FileName, stream);
                 return Ok(new { picturePath });
             }
         }

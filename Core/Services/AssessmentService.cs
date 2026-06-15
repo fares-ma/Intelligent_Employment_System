@@ -147,15 +147,36 @@ public class AssessmentService : IAssessmentService
         {
             try
             {
-                var answersDict = JsonSerializer.Deserialize<Dictionary<string, string>>(ca.Answers) ?? new Dictionary<string, string>();
+                var answersDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(ca.Answers) ?? new Dictionary<string, JsonElement>();
                 foreach (var q in assessment.Questions.OrderBy(q => q.OrderIndex))
                 {
-                    string candAnswer = answersDict.TryGetValue(q.Id.ToString(), out var ans) ? ans : "";
+                    string candAnswerIndex = answersDict.TryGetValue(q.Id.ToString(), out var element) ? element.ToString() : "";
                     
                     bool isCorrect = false;
+                    string displayCandAnswer = candAnswerIndex;
+                    string displayCorrectAnswer = q.CorrectAnswer ?? "";
+
                     if (q.Type == Domain.Enums.QuestionType.MCQ || q.Type == Domain.Enums.QuestionType.TrueFalse)
                     {
-                        isCorrect = !string.IsNullOrEmpty(q.CorrectAnswer) && q.CorrectAnswer.Equals(candAnswer, StringComparison.OrdinalIgnoreCase);
+                        isCorrect = !string.IsNullOrEmpty(q.CorrectAnswer) && q.CorrectAnswer.Equals(candAnswerIndex, StringComparison.OrdinalIgnoreCase);
+
+                        // Map indices to actual option text if Options is valid JSON array
+                        if (!string.IsNullOrEmpty(q.Options))
+                        {
+                            try
+                            {
+                                var optionsArray = JsonSerializer.Deserialize<List<string>>(q.Options);
+                                if (optionsArray != null)
+                                {
+                                    if (int.TryParse(candAnswerIndex, out int cIdx) && cIdx >= 0 && cIdx < optionsArray.Count)
+                                        displayCandAnswer = optionsArray[cIdx];
+                                    
+                                    if (int.TryParse(q.CorrectAnswer, out int rIdx) && rIdx >= 0 && rIdx < optionsArray.Count)
+                                        displayCorrectAnswer = optionsArray[rIdx];
+                                }
+                            }
+                            catch { /* Ignore parse error, use raw values */ }
+                        }
                     }
 
                     dto.Questions.Add(new QuestionAnswerDto
@@ -163,8 +184,8 @@ public class AssessmentService : IAssessmentService
                         QuestionId = q.Id,
                         QuestionText = q.Text,
                         QuestionType = q.Type.ToString(),
-                        CandidateAnswer = candAnswer,
-                        CorrectAnswer = q.CorrectAnswer,
+                        CandidateAnswer = displayCandAnswer,
+                        CorrectAnswer = displayCorrectAnswer,
                         IsCorrect = isCorrect,
                         Points = q.Points
                     });
@@ -209,12 +230,20 @@ public class AssessmentService : IAssessmentService
         if (assessment.EndDate.HasValue && DateTime.UtcNow > assessment.EndDate.Value)
             throw new BadRequestException("This assessment has expired.");
 
-        // Check if already started
+        // Check if already started or assigned
         var existing = await _unitOfWork.CandidateAssessments.GetByCandidateAndAssessmentAsync(candidateId, assessmentId);
         if (existing != null)
         {
             if (existing.IsCompleted)
                 throw new BadRequestException("Assessment already completed");
+                
+            // Set StartedAt if it was pre-assigned but not started
+            if (existing.StartedAt == null)
+            {
+                existing.StartedAt = DateTime.UtcNow;
+                _unitOfWork.CandidateAssessments.Update(existing);
+                await _unitOfWork.SaveChangesAsync();
+            }
                 
             return _mapper.Map<CandidateAssessmentDto>(existing);
         }
@@ -231,7 +260,10 @@ public class AssessmentService : IAssessmentService
         _unitOfWork.CandidateAssessments.Create(candidateAssessment);
         await _unitOfWork.SaveChangesAsync();
 
-        return _mapper.Map<CandidateAssessmentDto>(candidateAssessment);
+        var dto = _mapper.Map<CandidateAssessmentDto>(candidateAssessment);
+        dto.Assessment = _mapper.Map<AssessmentDto>(assessment);
+        
+        return dto;
     }
 
     public async Task<CandidateAssessmentDto> SubmitAssessmentAsync(SubmitAssessmentDto request, string candidateId)
@@ -268,9 +300,35 @@ public class AssessmentService : IAssessmentService
         attempt.SubmittedAt = DateTime.UtcNow;
         attempt.IsCompleted = true;
         
-        // Simple auto-grade logic for demonstration (assuming JSON answers)
-        // In reality, we would parse JSON answers and compare with CorrectAnswer
-        attempt.Score = 0; // Needs grading logic for real deployment
+        // Real auto-grade logic
+        int earnedScore = 0;
+        if (assessment != null && !string.IsNullOrEmpty(request.Answers))
+        {
+            try
+            {
+                var answersDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(request.Answers) ?? new Dictionary<string, JsonElement>();
+                foreach (var q in assessment.Questions)
+                {
+                    if (answersDict.TryGetValue(q.Id.ToString(), out var element))
+                    {
+                        string candAnswer = element.ToString();
+                        if (q.Type == Domain.Enums.QuestionType.MCQ || q.Type == Domain.Enums.QuestionType.TrueFalse)
+                        {
+                            if (!string.IsNullOrEmpty(q.CorrectAnswer) && q.CorrectAnswer.Equals(candAnswer, StringComparison.OrdinalIgnoreCase))
+                            {
+                                earnedScore += q.Points;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse answers for candidate {CandidateId} on assessment {AssessmentId}", candidateId, request.AssessmentId);
+            }
+        }
+        
+        attempt.Score = earnedScore;
 
         _unitOfWork.CandidateAssessments.Update(attempt);
         await _unitOfWork.SaveChangesAsync();
@@ -289,7 +347,40 @@ public class AssessmentService : IAssessmentService
 
     public async Task<IEnumerable<CandidateAssessmentDto>> GetCandidateAssessmentsAsync(string candidateId)
     {
+        var results = new List<CandidateAssessmentDto>();
+        
+        // 1. Get existing attempts
         var attempts = await _unitOfWork.CandidateAssessments.GetByCandidateAsync(candidateId);
-        return _mapper.Map<IEnumerable<CandidateAssessmentDto>>(attempts);
+        var mappedAttempts = _mapper.Map<List<CandidateAssessmentDto>>(attempts);
+        results.AddRange(mappedAttempts);
+
+        var existingAssessmentIds = attempts.Select(a => a.AssessmentId).ToHashSet();
+
+        // 2. Find pending assessments from job applications
+        var applications = await _unitOfWork.JobApplications.FindAsync(ja => 
+            ja.CandidateId == candidateId && 
+            ja.Status == Domain.Enums.ApplicationStatus.Assessment);
+
+        foreach (var app in applications)
+        {
+            var jobAssessments = await _unitOfWork.Assessments.GetByJobPostAsync(app.JobPostId);
+            foreach (var assessment in jobAssessments)
+            {
+                if (!existingAssessmentIds.Contains(assessment.Id))
+                {
+                    results.Add(new CandidateAssessmentDto
+                    {
+                        Id = 0, // 0 indicates it hasn't been started
+                        CandidateId = candidateId,
+                        AssessmentId = assessment.Id,
+                        JobApplicationId = app.Id,
+                        IsCompleted = false,
+                        Assessment = _mapper.Map<AssessmentDto>(assessment)
+                    });
+                }
+            }
+        }
+
+        return results;
     }
 }

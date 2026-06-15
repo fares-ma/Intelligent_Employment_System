@@ -16,6 +16,7 @@ public class CandidateAssessmentRepository : RepositoryBase<CandidateAssessment>
     {
         return await _context.Set<CandidateAssessment>()
             .Include(ca => ca.Assessment)
+                .ThenInclude(a => a.Questions)
             .FirstOrDefaultAsync(ca => ca.CandidateId == candidateId && ca.AssessmentId == assessmentId, cancellationToken);
     }
 

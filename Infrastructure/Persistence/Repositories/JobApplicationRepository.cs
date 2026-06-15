@@ -19,15 +19,14 @@ public class JobApplicationRepository : RepositoryBase<JobApplication>, IJobAppl
     }
 
     public async Task<JobApplication?> GetByTalentXCorrelationAsync(
-        int talentXCandidateId,
         string candidateId,
         int jobPostId,
         CancellationToken cancellationToken = default)
     {
         return await _dbSet
-            .FirstOrDefaultAsync(
-                ja => (ja.TalentXSentCandidateId == talentXCandidateId || ja.CandidateId == candidateId) 
-                      && ja.JobPostId == jobPostId,
+            .FirstOrDefaultAsync(ja =>
+                ja.CandidateId == candidateId &&
+                ja.JobPostId == jobPostId,
                 cancellationToken);
     }
 

@@ -76,7 +76,7 @@ public class TalentXResumeScorerClient : ITalentXResumeScorerClient
     }
 
     public async Task<TalentXScoreResultResponse?> GetResultsAsync(
-        int candidateId,
+        string candidateId,
         int jobId,
         CancellationToken cancellationToken = default)
     {

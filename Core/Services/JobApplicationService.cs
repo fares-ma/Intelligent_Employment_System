@@ -118,7 +118,7 @@ public class JobApplicationService : IJobApplicationService
         var applications = new List<JobApplicationDto>();
         foreach (var app in result.Items)
         {
-            var jobPost = await _unitOfWork.JobPosts.GetByIdAsync(app.JobPostId);
+            var jobPost = await _unitOfWork.JobPosts.GetByIdWithSkillsAsync(app.JobPostId);
             applications.Add(MapToDto(app, candidate, jobPost));
         }
 
@@ -194,6 +194,21 @@ public class JobApplicationService : IJobApplicationService
                         var activeAssessment = assessment.FirstOrDefault(a => a.IsActive);
                         if (activeAssessment != null)
                         {
+                            // Assign assessment to candidate if not already assigned
+                            var existingCandidateAssessment = await _unitOfWork.CandidateAssessments.GetByCandidateAndAssessmentAsync(candidate.Id, activeAssessment.Id);
+                            if (existingCandidateAssessment == null)
+                            {
+                                var newCandidateAssessment = new CandidateAssessment
+                                {
+                                    CandidateId = candidate.Id,
+                                    AssessmentId = activeAssessment.Id,
+                                    JobApplicationId = application.Id,
+                                    IsCompleted = false
+                                };
+                                _unitOfWork.CandidateAssessments.Create(newCandidateAssessment);
+                                await _unitOfWork.SaveChangesAsync();
+                            }
+
                             var subject = $"Assessment Invitation: {jobPost.Title}";
                             var body = $"<h1>Assessment Invitation</h1><p>Dear {candidate.UserName},</p><p>You have been invited to take the assessment <strong>{activeAssessment.Title}</strong> for the position of {jobPost.Title}.</p>";
                             
@@ -322,9 +337,13 @@ public class JobApplicationService : IJobApplicationService
             CandidateId = application.CandidateId,
             CandidateName = candidate != null ? $"{candidate.FirstName} {candidate.LastName}".Trim() : string.Empty,
             CandidateEmail = candidate?.Email ?? string.Empty,
-            CandidateProfilePictureUrl = candidate?.ProfilePicturePath,
+            CandidateProfilePictureUrl = !string.IsNullOrEmpty(candidate?.ProfilePicturePath)
+                ? $"/api/Candidates/profile-picture/{System.IO.Path.GetFileName(candidate.ProfilePicturePath)}"
+                : null,
             JobPostId = application.JobPostId,
             JobTitle = jobPost?.Title ?? string.Empty,
+            CompanyName = jobPost?.Company?.Name ?? string.Empty,
+            CompanyLogoUrl = jobPost?.Company?.LogoPath,
             Status = application.Status.ToString(),
             CoverLetter = null,
             ResumeId = application.ResumeId > 0 ? application.ResumeId : null,

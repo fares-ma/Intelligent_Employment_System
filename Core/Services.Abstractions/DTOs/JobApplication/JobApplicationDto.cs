@@ -31,6 +31,10 @@ public class JobApplicationDto
     /// </summary>
     public string JobTitle { get; set; } = string.Empty;
 
+    public string CompanyName { get; set; } = string.Empty;
+
+    public string? CompanyLogoUrl { get; set; }
+
     /// <summary>
     /// Current status of the application (Pending, UnderReview, Assessment, Interview, Accepted, Rejected, Withdrawn)
     /// </summary>

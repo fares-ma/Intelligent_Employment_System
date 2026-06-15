@@ -8,7 +8,6 @@ public interface IJobApplicationRepository : IRepositoryBase<JobApplication>
     Task<bool> ExistsAsync(string candidateId, int jobPostId, CancellationToken cancellationToken = default);
 
     Task<JobApplication?> GetByTalentXCorrelationAsync(
-        int talentXCandidateId,
         string candidateId,
         int jobPostId,
         CancellationToken cancellationToken = default);

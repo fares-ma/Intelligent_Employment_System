@@ -24,7 +24,7 @@ public class JobPostRepository : RepositoryBase<JobPost>, IJobPostRepository
     public async Task<PagedResult<JobPost>> GetPublishedJobsAsync(PaginationParams paginationParams, CancellationToken cancellationToken = default)
     {
         var query = _dbSet
-            .Where(j => j.IsPublished && j.IsActive && !j.IsDeleted && j.Status == "ACTIVE" && j.ExpiryDate > DateTime.UtcNow)
+            .Where(j => j.IsPublished && j.IsActive && !j.IsDeleted && j.Status == "ACTIVE" && (j.ExpiryDate == null || j.ExpiryDate > DateTime.UtcNow))
             .Include(j => j.JobPostSkills)
                 .ThenInclude(jps => jps.Skill)
             .Include(j => j.Company)
@@ -54,7 +54,7 @@ public class JobPostRepository : RepositoryBase<JobPost>, IJobPostRepository
         var skillIds = job.JobPostSkills.Select(jps => jps.SkillId).ToList();
 
         return await _dbSet
-            .Where(j => j.Id != jobPostId && j.IsPublished && j.IsActive && !j.IsDeleted && j.Status == "ACTIVE" && j.ExpiryDate > DateTime.UtcNow)
+            .Where(j => j.Id != jobPostId && j.IsPublished && j.IsActive && !j.IsDeleted && j.Status == "ACTIVE" && (j.ExpiryDate == null || j.ExpiryDate > DateTime.UtcNow))
             .Where(j => j.JobPostSkills.Any(jps => skillIds.Contains(jps.SkillId)))
             .Include(j => j.JobPostSkills)
                 .ThenInclude(jps => jps.Skill)

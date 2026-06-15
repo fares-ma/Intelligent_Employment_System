@@ -37,11 +37,7 @@ public class JobApplication
     /// </summary>
     public AiScoringStatus AiScoringStatus { get; set; } = AiScoringStatus.NotStarted;
 
-    /// <summary>
-    /// Integer candidate_id sent to TalentX POST /api/v1/score (stable hash of CandidateId GUID).
-    /// Used with JobPostId to correlate webhook and polling responses.
-    /// </summary>
-    public int? TalentXSentCandidateId { get; set; }
+
 
     /// <summary>
     /// Parsed resume payload from TalentX (JSON).

@@ -254,17 +254,24 @@ public class CompanyService : ICompanyService
         return rel.Replace('\\', '/');
     }
 
-    public async Task<string> UpdateLogoAsync(string companyId, string fileName, Stream fileStream)
+    public async Task<string> UpdateLogoAsync(string companyId, string userId, string fileName, Stream fileStream)
     {
         if (!int.TryParse(companyId, out var id))
         {
             throw new BadRequestException("Invalid company ID format");
         }
 
-        var company = await _unitOfWork.Companies.GetByIdAsync(id);
+        var company = await _unitOfWork.Companies.GetByIdWithIncludesAsync(id, tracking: true);
         if (company is null)
         {
             throw new NotFoundException($"Company with ID '{id}' not found");
+        }
+
+        var adminRecruiter = company.Recruiters.FirstOrDefault(r => r.RecruiterRole == UserRole.Admin);
+        if (adminRecruiter?.Id != userId)
+        {
+            _logger.LogWarning("User {UserId} attempted to update logo for company {CompanyId} without admin rights", userId, id);
+            throw new ForbiddenException("Only the company admin can update the company logo");
         }
 
         if (!string.IsNullOrWhiteSpace(company.LogoPath))

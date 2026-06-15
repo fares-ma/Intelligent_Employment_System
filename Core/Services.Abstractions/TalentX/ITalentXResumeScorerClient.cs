@@ -13,7 +13,7 @@ public interface ITalentXResumeScorerClient
       CancellationToken cancellationToken = default);
 
   Task<TalentXScoreResultResponse?> GetResultsAsync(
-      int candidateId,
+      string candidateId,
       int jobId,
       CancellationToken cancellationToken = default);
 

@@ -43,7 +43,7 @@ public interface ICompanyService
     /// <summary>
     /// Update company logo
     /// </summary>
-    Task<string> UpdateLogoAsync(string companyId, string fileName, Stream fileStream);
+    Task<string> UpdateLogoAsync(string companyId, string userId, string fileName, Stream fileStream);
 
     /// <summary>
     /// Transfer admin role to another recruiter in the company

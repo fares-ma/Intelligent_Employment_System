@@ -65,8 +65,7 @@ public class JobApplicationConfig : IEntityTypeConfiguration<JobApplication>
         builder.Property(ja => ja.LastProcessedIdempotencyKey)
             .HasMaxLength(256);
 
-        builder.HasIndex(ja => new { ja.TalentXSentCandidateId, ja.JobPostId })
-            .HasFilter("[TalentXSentCandidateId] IS NOT NULL");
+
 
         builder.Property(ja => ja.DeletedAt)
             .IsRequired(false);

@@ -77,15 +77,14 @@ public class TalentXScoringService : ITalentXScoringService
         if (!_fileStorage.FileExists(resume.StoredFilePath))
             throw new BadRequestException("Resume file is missing from storage.");
 
-        var talentXCandidateId = TalentXIdMapper.ToTalentXCandidateId(application.CandidateId);
         var jobDescriptionJson = _jobDescriptionBuilder.BuildJson(jobPost);
-        var idempotencyKey = TalentXIdMapper.BuildIdempotencyKey(talentXCandidateId, application.JobPostId);
+        var idempotencyKey = TalentXIdMapper.BuildIdempotencyKey(application.CandidateId, application.JobPostId);
 
         await using var cvStream = await _fileStorage.GetFileStreamAsync(resume.StoredFilePath);
 
         var request = new TalentXScoreRequest
         {
-            CandidateId = talentXCandidateId,
+            CandidateId = application.CandidateId,
             JobId = application.JobPostId,
             CvFileStream = cvStream,
             CvFileName = resume.OriginalFileName,
@@ -94,7 +93,6 @@ public class TalentXScoringService : ITalentXScoringService
 
         await _talentXClient.InitiateScoringAsync(request, idempotencyKey, cancellationToken);
 
-        application.TalentXSentCandidateId = talentXCandidateId;
         application.AiScoringStatus = AiScoringStatus.Processing;
         application.AiScoringRequestedAt = DateTime.UtcNow;
         application.AiScoringCompletedAt = null;
@@ -107,7 +105,7 @@ public class TalentXScoringService : ITalentXScoringService
         _logger.LogInformation(
             "TalentX scoring initiated for application {ApplicationId} (candidate {CandidateId}, job {JobId})",
             jobApplicationId,
-            talentXCandidateId,
+            application.CandidateId,
             application.JobPostId);
     }
 
@@ -127,20 +125,7 @@ public class TalentXScoringService : ITalentXScoringService
             return false;
         }
 
-        // TalentX sends back the original GUID candidate_id; convert to the hashed int we stored.
-        int talentXCandidateId;
-        if (int.TryParse(payload.CandidateId, out var parsedInt))
-        {
-            talentXCandidateId = parsedInt;
-        }
-        else
-        {
-            // It's a GUID string — hash it the same way we did when we sent the scoring request.
-            talentXCandidateId = TalentXIdMapper.ToTalentXCandidateId(payload.CandidateId);
-        }
-
         var application = await _unitOfWork.JobApplications.GetByTalentXCorrelationAsync(
-            talentXCandidateId,
             payload.CandidateId,
             payload.JobId,
             cancellationToken);
@@ -148,9 +133,8 @@ public class TalentXScoringService : ITalentXScoringService
         if (application is null)
         {
             _logger.LogWarning(
-                "No job application found for TalentX webhook candidate {CandidateId} (mapped to {TalentXId}), job {JobId}",
+                "No job application found for TalentX webhook candidate {CandidateId}, job {JobId}",
                 payload.CandidateId,
-                talentXCandidateId,
                 payload.JobId);
             throw new NotFoundException("Job application not found for webhook correlation.");
         }
@@ -189,12 +173,11 @@ public class TalentXScoringService : ITalentXScoringService
 
         var application = await _unitOfWork.JobApplications.GetByIdAsync(jobApplicationId);
         if (application is null
-            || application.TalentXSentCandidateId is null
             || application.AiScoringStatus != AiScoringStatus.Processing)
             return false;
 
         var result = await _talentXClient.GetResultsAsync(
-            application.TalentXSentCandidateId.Value,
+            application.CandidateId,
             application.JobPostId,
             cancellationToken);
 
@@ -202,7 +185,7 @@ public class TalentXScoringService : ITalentXScoringService
             return false;
 
         var pollKey = result.IdempotencyKey
-            ?? $"talentx-poll-{application.TalentXSentCandidateId}-{application.JobPostId}-{DateTime.UtcNow:O}";
+            ?? $"talentx-poll-{application.CandidateId}-{application.JobPostId}-{DateTime.UtcNow:O}";
 
         if (await _unitOfWork.ProcessedIdempotencyKeys.ExistsAsync(pollKey, cancellationToken))
             return false;
@@ -247,6 +230,19 @@ public class TalentXScoringService : ITalentXScoringService
                 : 0m;
             application.AiScoringErrorMessage = null;
             application.MatchReport = BuildMatchReport(payload.FitStatus, payload.FinalScore);
+
+            // Automatically update application status based on FitStatus
+            if (string.Equals(payload.FitStatus, "not_fit", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(payload.FitStatus, "not fit", StringComparison.OrdinalIgnoreCase))
+            {
+                application.Status = ApplicationStatus.Rejected;
+            }
+            else if (string.Equals(payload.FitStatus, "fit", StringComparison.OrdinalIgnoreCase) || 
+                     string.Equals(payload.FitStatus, "partial_fit", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(payload.FitStatus, "partial fit", StringComparison.OrdinalIgnoreCase))
+            {
+                application.Status = ApplicationStatus.UnderReview;
+            }
         }
         else if (string.Equals(payload.Status, "failed", StringComparison.OrdinalIgnoreCase))
         {
@@ -276,6 +272,19 @@ public class TalentXScoringService : ITalentXScoringService
                 : 0m;
             application.AiScoringErrorMessage = null;
             application.MatchReport = BuildMatchReport(result.FitStatus, result.FinalScore);
+
+            // Automatically update application status based on FitStatus
+            if (string.Equals(result.FitStatus, "not_fit", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(result.FitStatus, "not fit", StringComparison.OrdinalIgnoreCase))
+            {
+                application.Status = ApplicationStatus.Rejected;
+            }
+            else if (string.Equals(result.FitStatus, "fit", StringComparison.OrdinalIgnoreCase) || 
+                     string.Equals(result.FitStatus, "partial_fit", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(result.FitStatus, "partial fit", StringComparison.OrdinalIgnoreCase))
+            {
+                application.Status = ApplicationStatus.UnderReview;
+            }
         }
         else if (string.Equals(result.Status, "failed", StringComparison.OrdinalIgnoreCase))
         {

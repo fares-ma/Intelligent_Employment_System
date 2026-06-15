@@ -11,7 +11,7 @@ public class TalentXScoreAcceptedResponse
   public string? Message { get; set; }
 
   [JsonPropertyName("candidate_id")]
-  public int CandidateId { get; set; }
+  public required string CandidateId { get; set; }
 
   [JsonPropertyName("job_id")]
   public int JobId { get; set; }
